@@ -1,0 +1,5 @@
+# Extensions installed everywhere (including devcontainers)
+mhutchie.git-graph
+redhat.vscode-yaml
+anthropic.claude-code
+biomejs.biome
