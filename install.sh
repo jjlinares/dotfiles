@@ -67,7 +67,6 @@ backup_and_link "$DOTFILES_DIR/git/ignore" "$HOME/.config/git/ignore"
 log "Setting up Claude configs..."
 mkdir -p "$HOME/.claude"
 backup_and_link "$DOTFILES_DIR/claude/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
-backup_and_link "$DOTFILES_DIR/claude/settings.json" "$HOME/.claude/settings.json"
 
 # GTK configs
 log "Setting up GTK configs..."
