@@ -43,6 +43,14 @@ else
     log "Oh My Zsh already installed"
 fi
 
+# Install Claude Code CLI
+if ! command -v claude &> /dev/null; then
+    log "Installing Claude Code CLI..."
+    curl -fsSL https://claude.ai/install.sh | bash
+else
+    log "Claude Code CLI already installed"
+fi
+
 # Shell configs
 log "Setting up shell configs..."
 backup_and_link "$DOTFILES_DIR/shell/.bashrc" "$HOME/.bashrc"

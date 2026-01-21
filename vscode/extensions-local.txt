@@ -1,1 +1,4 @@
 # Extensions installed only on host (not in devcontainers)
+ms-azuretools.vscode-containers
+ms-kubernetes-tools.vscode-kubernetes-tools
+ms-vscode-remote.remote-containers
