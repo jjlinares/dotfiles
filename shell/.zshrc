@@ -34,3 +34,6 @@ esac
 
 # opencode
 export PATH=$HOME/.opencode/bin:$PATH
+
+# browser remote debugging
+alias chrome-debug="google-chrome --remote-debugging-port=9222 --user-data-dir=$HOME/.config/chrome-debug-profile --no-first-run"

@@ -138,3 +138,9 @@ case ":$PATH:" in
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
+
+# opencode
+export PATH=$HOME/.opencode/bin:$PATH
+
+# browser remote debugging
+alias chrome-debug='google-chrome --remote-debugging-port=9222 --user-data-dir=~/.config/chrome-debug-profile --no-first-run'
