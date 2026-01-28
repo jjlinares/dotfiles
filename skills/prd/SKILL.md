@@ -8,17 +8,31 @@ Create Product Requirements Documents suitable for RFC review by Principal Engin
 
 PRDs describe WHAT to build and WHY, not HOW or in WHAT ORDER.
 
-## Workflow
+## Phase 1: Discovery
 
-1. User requests PRD for a feature
-2. Ask clarifying questions to build full understanding
-3. Explore codebase to understand patterns, constraints, dependencies
-4. Create folder `.specs/prds/<feature-name>/`
-5. Generate PRD to `.specs/prds/<feature-name>/prd.md`
+**Goal:** Understand what the user wants to document.
 
-## Clarifying Questions
+1. Identify the feature or problem from user's request
+2. Create a todo list tracking all phases
+3. Ask user for any existing context (docs, issues, sketches, conversations)
 
-Ask 5-7 questions across these domains:
+## Phase 2: Codebase Exploration
+
+**Goal:** Build technical understanding of the feature area before asking questions.
+
+Launch 2-3 code-explorer agents in parallel:
+
+- "Find similar features and trace their implementation patterns"
+- "Map architecture and dependencies for [feature area]"
+- "Identify integration points, data models, and constraints relevant to [feature]"
+
+After agents return, read the key files they identify. Note patterns, conventions, and constraints discovered.
+
+## Phase 3: Clarifying Questions
+
+**CRITICAL: DO NOT SKIP THIS PHASE.**
+
+**Goal:** Fill knowledge gaps with 5-7 targeted questions across these domains.
 
 **Problem & Motivation**
 - What problem does this solve? Who experiences it?
@@ -47,52 +61,43 @@ Ask 5-7 questions across these domains:
 - External service dependencies?
 - Open/contentious decisions?
 
-## Output Format
+**DO NOT PROCEED WITHOUT USER ANSWERS.** If user says "whatever you think is best", provide your recommendation and get explicit confirmation before continuing.
+
+## Phase 4: PRD Generation
+
+**Goal:** Produce the final PRD document.
 
 1. Create folder: `.specs/prds/<feature-name>/`
-2. Save PRD to: `.specs/prds/<feature-name>/prd.md`
-
-Use template from `assets/prd-template.md`. Fill in all sections based on clarifying questions and codebase exploration. Remove "(if applicable)" sections that don't apply.
+2. Generate PRD to: `.specs/prds/<feature-name>/prd.md`
+3. Use template from `assets/prd-template.md`
+4. Fill all sections from clarifying answers and codebase exploration
+5. Remove "(if applicable)" sections that don't apply
+6. Run verification checklist (below)
+7. Tell user: `PRD saved to .specs/prds/<feature-name>/prd.md`
 
 ## Key Principles
 
-**Problem Before Solution**
-- Lead with problem, not solution
-- Quantify impact of NOT solving
-- Make the case for why this matters
+**Problem Before Solution** — Lead with problem, not solution. Quantify impact of NOT solving.
 
-**Define End State, Not Process**
-- Describe WHAT exists when done
-- Never prescribe implementation order
-- Never assign priorities or create phases
+**Define End State, Not Process** — Describe WHAT exists when done. Never prescribe implementation order or assign priorities.
 
-**Technical Context Enables Autonomy**
-- Show existing patterns to follow
-- Reference key files to explore
-- Enable informed implementation decisions
+**Technical Context Enables Autonomy** — Show existing patterns to follow. Reference key files. Enable informed decisions.
 
-**Non-Goals Prevent Scope Creep**
-- Explicit boundaries keep focus
-- Prevent accidentally building deferred features
+**Non-Goals Prevent Scope Creep** — Explicit boundaries keep focus. Prevent building deferred features.
 
-**Risks & Alternatives Show Rigor**
-- Demonstrate thought-through failure modes
-- Show alternatives considered and why rejected
-- Build confidence in proposed approach
+**Risks & Alternatives Show Rigor** — Demonstrate thought-through failure modes. Show alternatives considered and why rejected.
 
-## After PRD Creation
+## Verification Checklist
 
-Verify before sharing:
+Before sharing, verify:
+- [ ] Problem statement clear and compelling
+- [ ] Scope boundaries explicit
 - [ ] Technical risks identified and mitigated
 - [ ] User flows documented (if applicable)
 - [ ] Edge cases and error states covered (if applicable)
 - [ ] Accessibility requirements specified (if applicable)
-- [ ] Problem statement clear and compelling
-- [ ] Scope boundaries explicit
-
-Tell user: `PRD saved to .specs/prds/<feature-name>/prd.md`
 
 ## Resources
 
-- **`assets/prd-template.md`** - PRD template to copy and fill in
-- **`references/examples.md`** - Good/bad PRD examples
+- **`assets/prd-template.md`** — PRD template to copy and fill in
+- **`references/examples.md`** — Good/bad PRD examples
