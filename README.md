@@ -5,9 +5,7 @@ Personal dotfiles for Linux systems.
 ## Quick Install
 
 ```bash
-git clone https://github.com/jjlinares/dotfiles.git ~/dotfiles
-cd ~/dotfiles
-./install.sh
+git clone https://github.com/jjlinares/dotfiles.git ~/dotfiles && ~/dotfiles/install.sh
 ```
 
 ## What's Included
