@@ -82,7 +82,10 @@ backup_and_link "$DOTFILES_DIR/git/ignore" "$HOME/.config/git/ignore"
 # Claude configs
 log "Setting up Claude configs..."
 mkdir -p "$HOME/.claude"
-backup_and_link "$DOTFILES_DIR/claude/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+find "$DOTFILES_DIR/claude" -type f | while read -r src; do
+    rel="${src#$DOTFILES_DIR/claude/}"
+    backup_and_link "$src" "$HOME/.claude/$rel"
+done
 
 # GTK configs
 log "Setting up GTK configs..."

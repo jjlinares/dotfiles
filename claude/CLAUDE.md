@@ -1,6 +1,6 @@
 # Philosophy
 
-In all interactions be extremely concise. Sacrifice grammar for the sake of concision/
+In all interactions be extremely concise. Sacrifice grammar for the sake of concision.
 
 Your code will outlive you. Every shortcut you take becomes someone else's burden. 
 Every hack compounds into technical debt that slows the whole team down.
