@@ -1,6 +1,6 @@
 ---
 name: browser-use
-description: Automates browser interactions for web testing, form filling, screenshots, and data extraction. Use when the user needs to navigate websites, interact with web pages, fill forms, take screenshots, or extract information from web pages.
+description: Automates browser interactions for web testing, form filling, screenshots, and data extraction. Use when the user needs to navigate websites, interact with web pages, fill forms, take screenshots, extract information from web pages.
 allowed-tools: Bash(browser-use:*)
 ---
 
@@ -34,11 +34,14 @@ browser-use --browser chromium open <url>      # Default: headless Chromium
 browser-use --browser chromium --headed open <url>  # Visible Chromium window
 browser-use --browser real open <url>          # User's Chrome with login sessions
 browser-use --browser remote open <url>        # Cloud browser (requires API key)
+browser-use --cdp-url 9222 open <url>          # Connect to existing browser via CDP port
+browser-use --cdp-url http://localhost:9222 open <url>  # Connect via full CDP URL
 ```
 
 - **chromium**: Fast, isolated, headless by default
 - **real**: Uses your Chrome with cookies, extensions, logged-in sessions
 - **remote**: Cloud-hosted browser with proxy support (requires BROWSER_USE_API_KEY)
+- **cdp-url**: Connects to an already-running browser via Chrome DevTools Protocol. Accepts a port number (e.g. `9222`) or full URL (e.g. `http://localhost:9222`). Useful for connecting to Docker containers, remote machines, or browsers launched with `--remote-debugging-port`
 
 ## Commands
 
@@ -131,6 +134,7 @@ browser-use server logs                   # View server logs
 | `--browser MODE` | Browser mode: chromium, real, remote |
 | `--headed` | Show browser window (chromium mode) |
 | `--profile NAME` | Chrome profile (real mode only) |
+| `--cdp-url PORT\|URL` | Connect to existing browser via CDP (port or URL) |
 | `--json` | Output as JSON |
 | `--api-key KEY` | Override API key |
 
@@ -186,6 +190,7 @@ browser-use state  # Already logged in!
 4. **Use `--json` for parsing** output programmatically
 5. **Python variables persist** across `browser-use python` commands within a session
 6. **Real browser mode** preserves your login sessions and extensions
+7. **`--cdp-url`** connects to pre-existing browsers — ideal for Docker, remote debug, or reusing a manually launched Chrome
 
 ## Troubleshooting
 
