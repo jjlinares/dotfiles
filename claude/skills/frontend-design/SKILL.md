@@ -1,22 +1,29 @@
 ---
 name: frontend-design
-description: Create distinctive, production-grade frontend interfaces. Use when building web components, pages, or applications with React-based frameworks. Includes Tailwind CSS v4, shadcn/ui components, Motion animations, and visual design philosophy for avoiding generic AI aesthetics.
-metadata:
-  sources: https://github.com/dmmulroy/.dotfiles
+description: This skill should be used when the user asks to "build a landing page", "create a dashboard", "design a UI component", "build a web app", "create a form", "style a React component", "add animations", "make it look better", "redesign this page", "create a portfolio site", or needs distinctive, production-grade frontend interfaces with React frameworks.
 ---
 
 # Frontend Design
 
-Create distinctive, production-grade interfaces avoiding generic "AI slop" aesthetics.
+Create distinctive, production-grade interfaces avoiding generic "AI slop" aesthetics. Implement real working code with exceptional attention to aesthetic details and creative choices.
 
-## When to Use
+## Design Philosophy
 
-- Building UI with React frameworks (Next.js, Vite, Remix)
-- Creating visually distinctive, memorable interfaces
-- Implementing accessible components with shadcn/ui
-- Styling with Tailwind CSS v4
-- Adding animations and micro-interactions
-- Creating visual designs, posters, brand materials
+Before coding, understand context and commit to a **BOLD aesthetic direction**:
+
+1. **Purpose**: What problem does this solve? Who uses it?
+2. **Tone**: Pick an extreme direction:
+   - Brutally minimal / maximalist chaos
+   - Retro-futuristic / organic natural
+   - Luxury refined / playful toy-like
+   - Editorial magazine / brutalist raw
+   - Art deco geometric / soft pastel
+   - Industrial utilitarian / high fashion
+3. **Differentiation**: What makes this UNFORGETTABLE? One memorable element.
+
+Bold maximalism and refined minimalism both work. Key is **intentionality, not intensity**. Match implementation complexity to aesthetic vision - maximalist needs elaborate code; minimalist needs precision and restraint.
+
+**CRITICAL**: Never converge on common choices across generations. Vary themes, fonts, colors. Each design must be uniquely suited to its context.
 
 ## Reference Documentation
 
@@ -60,33 +67,25 @@ Search: `Field`, `InputGroup`, `Spinner`, `ButtonGroup`, `next-themes`
 
 For sophisticated compositions: posters, brand materials, design systems.
 
-## Design Thinking
+## Anti-Patterns (NEVER USE)
 
-Before coding, commit to BOLD aesthetic direction:
+Generic AI aesthetics are forbidden:
+- **Fonts**: Inter, Roboto, Arial, system fonts, Space Grotesk
+- **Colors**: Purple gradients on white, safe blue/gray palettes
+- **Layouts**: Centered hero + 3-column features + footer
+- **Components**: Default unstyled Bootstrap/Material patterns
 
-- **Purpose**: What problem? Who uses it?
-- **Tone**: Pick extreme - brutally minimal, maximalist chaos, retro-futuristic, organic, luxury, playful, editorial, brutalist, art deco, soft/pastel, industrial
-- **Differentiation**: What makes this UNFORGETTABLE?
+If a design could be mistaken for generic template output, start over.
 
-Bold maximalism and refined minimalism both work. Key is intentionality.
+## Execution Standards
 
-## Anti-Patterns (NEVER)
-
-- Overused fonts: Inter, Roboto, Arial, system fonts, Space Grotesk
-- Cliched colors: purple gradients on white
-- Predictable layouts and component patterns
-- Cookie-cutter design lacking character
-- Generic AI-generated aesthetics
-
-## Best Practices
-
-1. **Accessibility First**: Radix primitives, focus states, semantic HTML
+1. **Accessibility**: Radix primitives, focus states, semantic HTML
 2. **Mobile-First**: Start mobile, layer responsive variants
 3. **Design Tokens**: Use `@theme` for spacing, colors, typography
 4. **Dark Mode**: Apply dark variants to all themed elements
-5. **Performance**: Automatic CSS purging, avoid dynamic class names
+5. **Performance**: Avoid dynamic class names (breaks purging)
 6. **TypeScript**: Full type safety
-7. **Expert Craftsmanship**: Every detail matters
+7. **Craftsmanship**: Every pixel, every transition, every spacing choice matters
 
 ## Core Stack Summary
 
@@ -98,7 +97,9 @@ Bold maximalism and refined minimalism both work. Key is intentionality.
 
 ## Typography
 
-Choose beautiful, unique fonts. Pair distinctive display with refined body:
+Choose fonts that are beautiful, unique, interesting. Pair distinctive display with refined body. **Never default to safe choices.**
+
+Good font pairings: Playfair Display + Source Sans, Fraunces + Inter (when contextually appropriate), Monument Extended + DM Sans, Clash Display + Satoshi, Space Mono + Work Sans.
 
 ```css
 @theme {
@@ -150,8 +151,29 @@ dialog[open] {
 
 ## Spatial Composition
 
-Unexpected layouts. Asymmetry. Overlap. Diagonal flow. Grid-breaking elements. Generous negative space OR controlled density.
+Break expectations:
+- **Asymmetry**: Intentional imbalance creates visual interest
+- **Overlap**: Elements breaking grid boundaries
+- **Diagonal flow**: Guide eye with non-horizontal movement
+- **Negative space**: Generous breathing room OR controlled density
+- **Scale contrast**: Oversized elements next to delicate ones
 
-## Backgrounds
+## Visual Atmosphere
 
-Create atmosphere: gradient meshes, noise textures, geometric patterns, layered transparencies, dramatic shadows, grain overlays.
+Create depth and context, not flat solid colors:
+- Gradient meshes and color transitions
+- Noise/grain textures (subtle authenticity)
+- Geometric patterns and decorative elements
+- Layered transparencies and glassmorphism
+- Dramatic shadows and light sources
+- Custom cursors and micro-interactions
+
+## High-Impact Animations
+
+Focus effort on moments that matter most:
+- **Page load**: Orchestrated staggered reveals (`animation-delay`)
+- **Scroll triggers**: Elements that respond to scroll position
+- **Hover states**: Surprising, delightful responses
+- **Transitions**: Smooth state changes between views
+
+One well-crafted page entrance creates more impact than scattered micro-interactions.
