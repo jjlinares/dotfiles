@@ -15,6 +15,8 @@ alias kk="kubectl kustomize --enable-helm"
 alias kka="kubectl kustomize --enable-helm | kubectl apply --server-side -f -"
 alias kkd="kubectl kustomize --enable-helm | kubectl delete -f -"
 
+export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
+
 # bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
