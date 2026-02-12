@@ -6,7 +6,7 @@ description: This skill should be used when the user asks to "create a PRD", "wr
 
 Create Product Requirements Documents suitable for RFC review by Principal Engineers, Designers, and Product Owners.
 
-PRDs describe WHAT to build and WHY, not HOW or in WHAT ORDER.
+PRDs describe WHAT to build and WHY. They break delivery into thin vertical slices (tracer bullets) — each phase defines what EXISTS when done, not how to build it.
 
 ## Phase 1: Discovery
 
@@ -49,6 +49,7 @@ After agents return, read the key files they identify. Note patterns, convention
 - What's explicitly OUT of scope?
 - What's deferred to future iterations?
 - Adjacent features that must NOT be affected?
+- What's the thinnest slice that proves the approach works end-to-end?
 
 **Constraints**
 - Performance requirements?
@@ -67,19 +68,21 @@ After agents return, read the key files they identify. Note patterns, convention
 
 **Goal:** Produce the final PRD document.
 
-1. Create folder: `.specs/prds/<feature-name>/`
-2. Generate PRD to: `.specs/prds/<feature-name>/prd.md`
+1. Create folder: `.agents/features/<feature-name>/`
+2. Generate PRD to: `.agents/features/<feature-name>/prd.md`
 3. Use template from `assets/prd-template.md`
 4. Fill all sections from clarifying answers and codebase exploration
 5. Remove "(if applicable)" sections that don't apply
 6. Run verification checklist (below)
-7. Tell user: `PRD saved to .specs/prds/<feature-name>/prd.md`
+7. Tell user: `PRD saved to .agents/features/<feature-name>/prd.md`
 
 ## Key Principles
 
 **Problem Before Solution** — Lead with problem, not solution. Quantify impact of NOT solving.
 
-**Define End State, Not Process** — Describe WHAT exists when done. Never prescribe implementation order or assign priorities.
+**Define End State, Not Process** — Describe WHAT exists when done, not how to build it. Phases define deliverable slices, not task lists.
+
+**Tracer Bullets Over Big Bang** — Phase 1 is the thinnest end-to-end slice that validates the architecture. Each subsequent phase expands capability. Phases are ordered by risk reduction — prove the risky parts first.
 
 **Technical Context Enables Autonomy** — Show existing patterns to follow. Reference key files. Enable informed decisions.
 
@@ -92,6 +95,10 @@ After agents return, read the key files they identify. Note patterns, convention
 Before sharing, verify:
 - [ ] Problem statement clear and compelling
 - [ ] Scope boundaries explicit
+- [ ] Delivery phases define WHAT exists, not HOW to build it
+- [ ] Phase 1 is the thinnest possible end-to-end slice
+- [ ] Phases ordered by risk reduction, not task dependency
+- [ ] Each phase has its own acceptance criteria
 - [ ] Technical risks identified and mitigated
 - [ ] User flows documented (if applicable)
 - [ ] Edge cases and error states covered (if applicable)

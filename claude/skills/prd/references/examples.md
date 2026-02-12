@@ -2,7 +2,7 @@
 
 ## Bad Examples
 
-### Bad: Prescriptive / Thin
+### Bad: Task-Level Phases
 
 ```markdown
 ## Implementation Phases
@@ -20,7 +20,30 @@
 2. Write integration tests
 ```
 
-**Problem:** Prescribes HOW and in WHAT ORDER. PRD should define WHAT and WHY.
+**Problem:** Phases are task lists (HOW), not deliverable slices (WHAT). Phases organized by layer (DB → API → tests) instead of by user-facing capability. No acceptance criteria.
+
+Compare with a good phased approach — phases should define what EXISTS, not what to DO:
+
+```markdown
+## Delivery Phases
+
+### Phase 1: Tracer Bullet — Email/Password Login
+**Scope:** User can register and log in with email/password.
+**Why first:** Validates auth architecture end-to-end before adding OAuth.
+
+#### Acceptance Criteria
+- [ ] User can register with email/password
+- [ ] User can log in and receive a session token
+- [ ] Invalid credentials return error without leaking user existence
+
+### Phase 2: Token Refresh & Persistence
+**Scope:** Sessions survive browser close.
+**Depends on:** Phase 1
+
+#### Acceptance Criteria
+- [ ] Token refreshes silently before expiry
+- [ ] User stays logged in across browser restarts
+```
 
 ### Bad: Missing RFC Context
 
@@ -55,28 +78,38 @@ Q4 retention initiative. Competitor X launched auth last month.
 
 ---
 
-## End State
+## End State (Full Vision)
 
-When complete:
+When all phases complete:
 - [ ] Users can register with email/password
 - [ ] Users can log in and receive JWT
+- [ ] Sessions persist across browser restarts
 - [ ] Auth endpoints have >80% test coverage
 - [ ] Monitoring dashboards track auth success/failure rates
 
 ---
 
-## Acceptance Criteria
+## Delivery Phases
 
-### Registration
+### Phase 1: Tracer Bullet — Registration + Login
+**Scope:** User can register and log in. Token returned on success.
+**Why first:** Validates auth architecture, password hashing, and JWT flow end-to-end.
+
+#### Acceptance Criteria
 - [ ] POST /api/auth/register creates user
 - [ ] Password is hashed (bcrypt, cost factor 12)
 - [ ] Duplicate email returns 409
-- [ ] Invalid input returns 400 with details
-
-### Login
 - [ ] POST /api/auth/login returns JWT
 - [ ] Invalid credentials return 401 (no user enumeration)
+
+### Phase 2: Token Lifecycle
+**Scope:** Refresh tokens, expiry, persistent sessions.
+**Depends on:** Phase 1
+
+#### Acceptance Criteria
 - [ ] Token expires in 24h, refresh token in 7d
+- [ ] Silent refresh before expiry
+- [ ] Revocation on logout
 
 ---
 
@@ -100,6 +133,8 @@ When complete:
 **Why this works:**
 - Leads with problem, not solution
 - Quantifies impact
-- Defines end state, not implementation steps
+- Phases define WHAT exists, not HOW to build it
+- Phase 1 is the thinnest slice that validates the architecture
+- Each phase has its own acceptance criteria and is independently shippable
 - Includes risks and alternatives
 - Ready for RFC review

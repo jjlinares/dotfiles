@@ -38,25 +38,48 @@ How users interact with this feature. Include user flows for primary scenarios.
 
 ---
 
-## End State
+## End State (Full Vision)
 
-When this PRD is complete:
+When ALL phases are complete:
 
 - [ ] Capability 1 exists and works
 - [ ] Capability 2 exists and works
-- [ ] All acceptance criteria pass
+- [ ] All acceptance criteria across all phases pass
 - [ ] Tests cover new functionality
 - [ ] Documentation updated
-- [ ] Observability/monitoring in place
 
 ---
 
-## Acceptance Criteria
+## Delivery Phases
 
-### Feature: <Name>
+Break delivery into thin vertical slices. Phase 1 should be the smallest thing that validates the architecture end-to-end. Each phase defines WHAT exists when done — not implementation tasks.
+
+### Phase 1: Tracer Bullet — <name>
+
+Thinnest end-to-end slice that proves the approach works.
+
+**Scope:** What's included in this slice
+**Not included:** What's deferred to later phases
+**Why first:** What risk or assumption does this phase validate
+
+#### Acceptance Criteria
 - [ ] Criterion 1
 - [ ] Criterion 2
-- [ ] Criterion 3
+
+### Phase 2: <name>
+
+Builds on Phase 1 to expand capability.
+
+**Scope:** What's added in this phase
+**Depends on:** Phase 1
+
+#### Acceptance Criteria
+- [ ] Criterion 1
+- [ ] Criterion 2
+
+### Phase N: <name> (if applicable)
+
+Further phases as needed. Each should be independently reviewable and shippable.
 
 ---
 
