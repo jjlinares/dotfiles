@@ -14,7 +14,9 @@ git clone https://github.com/jjlinares/dotfiles.git ~/dotfiles && ~/dotfiles/ins
 |-----------|----------|
 | `shell/` | Bash, Zsh, profile configs (kubectl aliases) |
 | `git/` | Git config and global ignore |
-| `claude/` | Claude Code CLI settings |
+| `agents/` | Shared agent prompts and skills (merged into `~/.claude`) |
+| `claude/` | Claude-specific config (merged into `~/.claude`) |
+| `codex/` | Codex-specific config (installed to `~/.codex`) |
 | `cursor/` | Cursor IDE settings, keybindings, extensions |
 | `vscode/` | VS Code extensions |
 | `gtk/` | GTK 2/3/4 theme settings (Breeze-Dark) |
@@ -25,9 +27,13 @@ The `install.sh` script will:
 
 1. Install Oh My Zsh (if not present)
 2. Install Claude Code CLI (if not present)
-3. Create symlinks for all config files
-4. Backup existing configs to `*.bak`
-5. Install Cursor/VS Code extensions (host only)
+3. Install Codex CLI (if not present, requires `npm`)
+4. Symlink `agents/*` into `~/.claude/*`
+5. Map `agents/AGENTS.md` to `~/.claude/CLAUDE.md` (and migrate old `~/.claude/AGENTS.md`)
+6. Symlink `claude/*` into `~/.claude/*`
+7. Symlink `codex/*` into `~/.codex/*`
+8. Backup existing configs to `*.bak`
+9. Install Cursor/VS Code extensions (host only)
 
 ## Devcontainers
 
@@ -75,9 +81,14 @@ dotfiles/
 ├── git/
 │   ├── .gitconfig
 │   └── ignore
+├── agents/
+│   ├── AGENTS.md
+│   ├── agents/
+│   └── skills/
 ├── claude/
-│   ├── CLAUDE.md
 │   └── settings.json
+├── codex/
+│   └── ...
 ├── cursor/
 │   ├── settings.json
 │   ├── keybindings.json

@@ -51,6 +51,18 @@ else
     log "Claude Code CLI already installed"
 fi
 
+# Install Codex CLI
+if ! command -v codex &> /dev/null; then
+    if command -v npm &> /dev/null; then
+        log "Installing Codex CLI..."
+        npm install -g @openai/codex
+    else
+        warn "npm not found, skipping Codex CLI install"
+    fi
+else
+    log "Codex CLI already installed"
+fi
+
 # Install GitHub CLI
 if ! command -v gh &> /dev/null; then
     log "Installing GitHub CLI..."
@@ -79,12 +91,38 @@ backup_and_link "$DOTFILES_DIR/git/.gitconfig" "$HOME/.gitconfig"
 mkdir -p "$HOME/.config/git"
 backup_and_link "$DOTFILES_DIR/git/ignore" "$HOME/.config/git/ignore"
 
-# Claude configs
-log "Setting up Claude configs..."
+# Merge agents + Claude configs into ~/.claude
+log "Setting up Claude configs (agents + claude)..."
 mkdir -p "$HOME/.claude"
+if [ -e "$HOME/.claude/AGENTS.md" ] || [ -L "$HOME/.claude/AGENTS.md" ]; then
+    if [ ! -e "$HOME/.claude/CLAUDE.md" ] && [ ! -L "$HOME/.claude/CLAUDE.md" ]; then
+        mv "$HOME/.claude/AGENTS.md" "$HOME/.claude/CLAUDE.md"
+        log "Renamed ~/.claude/AGENTS.md -> ~/.claude/CLAUDE.md"
+    else
+        rm "$HOME/.claude/AGENTS.md"
+    fi
+fi
+find "$DOTFILES_DIR/agents" -type f | while read -r src; do
+    rel="${src#$DOTFILES_DIR/agents/}"
+    if [ "$rel" = "AGENTS.md" ]; then
+        rel="CLAUDE.md"
+    fi
+    backup_and_link "$src" "$HOME/.claude/$rel"
+done
+
+# Claude configs
+log "Applying Claude-specific configs..."
 find "$DOTFILES_DIR/claude" -type f | while read -r src; do
     rel="${src#$DOTFILES_DIR/claude/}"
     backup_and_link "$src" "$HOME/.claude/$rel"
+done
+
+# Codex configs
+log "Setting up Codex configs..."
+mkdir -p "$HOME/.codex"
+find "$DOTFILES_DIR/codex" -type f | while read -r src; do
+    rel="${src#$DOTFILES_DIR/codex/}"
+    backup_and_link "$src" "$HOME/.codex/$rel"
 done
 
 # GTK configs
