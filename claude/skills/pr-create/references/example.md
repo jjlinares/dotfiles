@@ -64,20 +64,23 @@ Branch context:
 6. Reliability instrumentation to prove `>90%` valid-spec rate in production-like runs
 
 ## How to Test
-Commands run in this session:
+### Command Checks
 1. `pnpm check` -> pass
 2. `pnpm exec tsc --noEmit` -> pass
 3. `pnpm test -- test/ai/json-render/specstream-compiler.test.ts test/ai/json-render/json-render-prompt.test.ts test/components/chat/json-render-utils.test.ts test/components/json-render/json-render-block.test.tsx test/components/json-render/json-render-specstream-block.test.tsx` -> pass (`27 tests`)
 
-Manual scenarios:
+### Interactive Validation
 1. Ask for a table, chart, map, and stats cards in chat; confirm structured render (not raw JSON).
 2. Watch initial streaming: structure appears first, data fills progressively.
 3. Refresh page; confirm rendered UI replays from persisted message text.
 4. Force malformed block; confirm fallback/error card without chat crash.
 
-## Evidence (screenshots, payload examples, logs)
+## Evidence
+### In-Session Evidence
 1. Test evidence from this session: all listed checks passed.
-2. Screenshots added to PR.
+
+### PR Attachments
+1. Screenshots added to PR.
 
 ## Risk Hotspots
 1. Streaming patch order sensitivity:
