@@ -39,9 +39,6 @@ After agents return, read the key files they identify. Note patterns, convention
 - Cost of NOT solving? (user pain, revenue, tech debt)
 - Why now? What triggered this work?
 
-**Users & Stakeholders**
-- Primary users? Secondary users?
-
 **End State**
 - What does "done" look like? How will users interact with it?
 

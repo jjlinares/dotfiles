@@ -12,10 +12,6 @@ Clear description of problem. Include user impact and business impact.
 ### Why now?
 What triggered this work? Cost of inaction?
 
-### Who is affected?
-- **Primary users:** Description
-- **Secondary users:** Description
-
 ---
 
 ## Proposed Solution

@@ -72,10 +72,6 @@ when asked to re-enter information. This costs ~$50k/month in lost conversions.
 ### Why now?
 Q4 retention initiative. Competitor X launched auth last month.
 
-### Who is affected?
-- **Primary users:** End users who want persistent sessions
-- **Secondary users:** Support team handling "lost data" tickets (~200/week)
-
 ---
 
 ## End State (Full Vision)
