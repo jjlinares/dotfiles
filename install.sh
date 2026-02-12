@@ -110,6 +110,14 @@ find "$DOTFILES_DIR/agents" -type f | while read -r src; do
     backup_and_link "$src" "$HOME/.claude/$rel"
 done
 
+# Agents configs
+log "Setting up Agents configs..."
+mkdir -p "$HOME/.agents"
+find "$DOTFILES_DIR/agents" -type f | while read -r src; do
+    rel="${src#$DOTFILES_DIR/agents/}"
+    backup_and_link "$src" "$HOME/.agents/$rel"
+done
+
 # Claude configs
 log "Applying Claude-specific configs..."
 find "$DOTFILES_DIR/claude" -type f | while read -r src; do
