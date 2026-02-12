@@ -28,9 +28,16 @@ Produce a PR package with these sections in this order:
 6. How to Test
 7. Evidence (screenshots, payload examples, logs)
 8. Risk Hotspots
-9. Reviewer Assignments
 
 Keep each section concise and concrete.
+
+Formatting requirements:
+- Use section titles exactly as listed above.
+- Prefer numbered lists for steps/checks.
+- Under "Change Areas", group by domain and include exact file paths.
+- Under "How to Test", include both command checks and manual scenarios.
+- Under "Evidence", include what was validated in-session and what was attached in PR (screenshots/payloads), if any.
+- Under "Risk Hotspots", include risk + concrete mitigation for each item.
 
 ## Process
 
@@ -52,3 +59,6 @@ Keep each section concise and concrete.
 - Keep reviewer workload low: order from architectural risk to cosmetic changes.
 - If migrations or manual deployment steps exist, call them out explicitly.
 
+## Additional Resources
+
+- `references/example.md` — canonical PR output example and formatting style.
