@@ -113,9 +113,20 @@ done
 # Agents configs
 log "Setting up Agents configs..."
 mkdir -p "$HOME/.agents"
-find "$DOTFILES_DIR/agents" -type f | while read -r src; do
+# Keep non-skill agent files on per-file symlinks.
+# Skills are handled separately below because Codex expects skill directory
+# symlinks under ~/.agents/skills, not individual file symlinks.
+find "$DOTFILES_DIR/agents" -type f ! -path "$DOTFILES_DIR/agents/skills/*" | while read -r src; do
     rel="${src#$DOTFILES_DIR/agents/}"
     backup_and_link "$src" "$HOME/.agents/$rel"
+done
+
+# Link each top-level skill entry as a symlink.
+# Reason: Codex skill discovery works with skill folder symlinks.
+mkdir -p "$HOME/.agents/skills"
+find "$DOTFILES_DIR/agents/skills" -mindepth 1 -maxdepth 1 | while read -r src; do
+    rel="$(basename "$src")"
+    backup_and_link "$src" "$HOME/.agents/skills/$rel"
 done
 
 # Claude configs
