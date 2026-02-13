@@ -2,5 +2,9 @@
   "statusLine": {
     "type": "command",
     "command": "input=$(cat); cwd=$(echo \"$input\" | jq -r '.workspace.current_dir'); remaining=$(echo \"$input\" | jq -r '.context_window.remaining_percentage // empty'); if [ -n \"$remaining\" ]; then printf \"Context: %.0f%% remaining | %s\" \"$remaining\" \"$cwd\"; else echo \"$cwd\"; fi"
+  },
+    "enabledPlugins": {
+    "context7@claude-plugins-official": true,
+    "plugin-dev@claude-plugins-official": true
   }
 }
