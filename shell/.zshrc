@@ -12,7 +12,7 @@ source $ZSH/oh-my-zsh.sh
 # kubectl
 alias k="kubectl"
 alias kk="kubectl kustomize --enable-helm"
-alias kka="kubectl kustomize --enable-helm | kubectl apply --server-side -f -"
+alias kka="kustomize build --enable-helm . | kubectl apply --server-side -f -"
 alias kkd="kubectl kustomize --enable-helm | kubectl delete -f -"
 
 export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
@@ -99,3 +99,6 @@ chrome-debug() {
     
     echo "Done."
 }
+
+# Load local machine-only environment variables.
+[ -f "$HOME/.config/shell/env.local" ] && source "$HOME/.config/shell/env.local"

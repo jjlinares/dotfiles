@@ -95,7 +95,7 @@ alias l='ls -CF'
 # kubectl
 alias k="kubectl"
 alias kk="kubectl kustomize --enable-helm"
-alias kka="kubectl kustomize --enable-helm | kubectl apply --server-side -f -"
+alias kka="kustomize build --enable-helm . | kubectl apply --server-side -f -"
 alias kkd="kubectl kustomize --enable-helm | kubectl delete -f -"
 
 # Add an "alert" alias for long running commands.  Use like so:
@@ -144,3 +144,6 @@ export PATH=$HOME/.opencode/bin:$PATH
 
 # browser remote debugging
 alias chrome-debug='google-chrome --remote-debugging-port=9222 --user-data-dir=~/.config/chrome-debug-profile --no-first-run'
+
+# Load local machine-only environment variables.
+[ -f "$HOME/.config/shell/env.local" ] && source "$HOME/.config/shell/env.local"
