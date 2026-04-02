@@ -102,3 +102,6 @@ chrome-debug() {
 
 # Load local machine-only environment variables.
 [ -f "$HOME/.config/shell/env.local" ] && source "$HOME/.config/shell/env.local"
+
+# bun completions
+[ -s "/home/jj/.bun/_bun" ] && source "/home/jj/.bun/_bun"
