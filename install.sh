@@ -74,14 +74,6 @@ backup_and_link "$DOTFILES_DIR/git/ignore" "$HOME/.config/git/ignore"
 bash "$DOTFILES_DIR/claude/setup.sh"
 bash "$DOTFILES_DIR/codex/setup.sh"
 
-# GTK configs
-log "Setting up GTK configs..."
-backup_and_link "$DOTFILES_DIR/gtk/.gtkrc-2.0" "$HOME/.gtkrc-2.0"
-mkdir -p "$HOME/.config/gtk-3.0"
-mkdir -p "$HOME/.config/gtk-4.0"
-backup_and_link "$DOTFILES_DIR/gtk/gtk-3.0/settings.ini" "$HOME/.config/gtk-3.0/settings.ini"
-backup_and_link "$DOTFILES_DIR/gtk/gtk-4.0/settings.ini" "$HOME/.config/gtk-4.0/settings.ini"
-
 # Cursor configs
 log "Setting up Cursor configs..."
 mkdir -p "$HOME/.config/Cursor/User"

@@ -16,10 +16,9 @@ git clone https://github.com/jjlinares/dotfiles.git ~/dotfiles && ~/dotfiles/ins
 | `git/` | Git config and global ignore |
 | `agents/` | Shared agent prompts and skills (merged into `~/.claude`) |
 | `claude/` | Claude-specific config (merged into `~/.claude`) |
-| `codex/` | Codex-specific config (installed to `~/.codex`) |
+| `codex/` | Codex setup helpers |
 | `cursor/` | Cursor IDE settings, keybindings, extensions |
 | `vscode/` | VS Code extensions |
-| `gtk/` | GTK 2/3/4 theme settings (Breeze-Dark) |
 
 ## Install Script
 
@@ -31,9 +30,8 @@ The `install.sh` script will:
 4. Symlink `agents/*` into `~/.claude/*`
 5. Map `agents/AGENTS.md` to `~/.claude/CLAUDE.md` (and migrate old `~/.claude/AGENTS.md`)
 6. Symlink `claude/*` into `~/.claude/*`
-7. Symlink `codex/*` into `~/.codex/*`
-8. Backup existing configs to `*.bak`
-9. Install Cursor/VS Code extensions (host only)
+7. Backup existing configs to `*.bak`
+8. Install Cursor/VS Code extensions (host only)
 
 ## Devcontainers
 
@@ -88,19 +86,13 @@ dotfiles/
 ├── claude/
 │   └── settings.json
 ├── codex/
-│   └── ...
+│   └── setup.sh
 ├── cursor/
 │   ├── settings.json
 │   ├── keybindings.json
 │   ├── extensions-core.txt
 │   └── extensions-local.txt
-├── vscode/
-│   ├── extensions-core.txt
-│   └── extensions-local.txt
-└── gtk/
-    ├── .gtkrc-2.0
-    ├── gtk-3.0/
-    │   └── settings.ini
-    └── gtk-4.0/
-        └── settings.ini
+└── vscode/
+    ├── extensions-core.txt
+    └── extensions-local.txt
 ```

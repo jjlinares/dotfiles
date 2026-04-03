@@ -64,18 +64,7 @@ setup_codex_skills() {
     done
 }
 
-setup_codex_config() {
-    [ -d "$DOTFILES_DIR/codex" ] || return
-
-    mkdir -p "$HOME/.codex"
-    find "$DOTFILES_DIR/codex" -type f ! -name "setup.sh" | while read -r src; do
-        local rel="${src#$DOTFILES_DIR/codex/}"
-        backup_and_link "$src" "$HOME/.codex/$rel"
-    done
-}
-
 log "Setting up Codex..."
 install_codex_cli
 setup_codex_agents_md
 setup_codex_skills
-setup_codex_config
