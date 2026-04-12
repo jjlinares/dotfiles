@@ -17,11 +17,12 @@ For setup details, see https://github.com/browser-use/browser-use/blob/main/brow
 
 ## Core Workflow
 
-1. **Navigate**: `browser-use open <url>` — launches headless browser and opens page
-2. **Inspect**: `browser-use state` — returns clickable elements with indices
-3. **Interact**: use indices from state (`browser-use click 5`, `browser-use input 3 "text"`)
-4. **Verify**: `browser-use state` or `browser-use screenshot` to confirm
-5. **Repeat**: browser stays open between commands
+1. **Connect**: `browser-use connect` - connects to user's Chrome
+2. **Navigate**: `browser-use open <url>` — launches headless browser and opens page
+3. **Inspect**: `browser-use state` — returns clickable elements with indices
+4. **Interact**: use indices from state (`browser-use click 5`, `browser-use input 3 "text"`)
+5. **Verify**: `browser-use state` or `browser-use screenshot` to confirm
+6. **Repeat**: browser stays open between commands
 
 If a command fails, run `browser-use close` first to clear any broken session, then retry.
 
