@@ -43,6 +43,8 @@ Start every Plane task with this order:
   `GET /api/v1/workspaces/{workspace_slug}/projects/`
 - List members:
   `GET /api/v1/workspaces/{workspace_slug}/members/`
+- List project members:
+  `GET /api/v1/workspaces/{workspace_slug}/projects/{project_id}/project-members/`
 - List work item types on the live instance:
   `GET /api/v1/workspaces/{workspace_slug}/projects/{project_id}/issue-types/`
 - Create work item:
