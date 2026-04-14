@@ -92,12 +92,6 @@ alias ll='ls -alF'
 alias la='ls -A'
 alias l='ls -CF'
 
-# kubectl
-alias k="kubectl"
-alias kk="kubectl kustomize --enable-helm"
-alias kka="kustomize build --enable-helm . | kubectl apply --server-side -f -"
-alias kkd="kubectl kustomize --enable-helm | kubectl delete -f -"
-
 # Add an "alert" alias for long running commands.  Use like so:
 #   sleep 10; alert
 alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo error)" "$(history|tail -n1|sed -e '\''s/^\s*[0-9]\+\s*//;s/[;&|]\s*alert$//'\'')"'
@@ -122,28 +116,4 @@ if ! shopt -oq posix; then
   fi
 fi
 
-# bun
-export BUN_INSTALL="$HOME/.bun"
-export PATH="$BUN_INSTALL/bin:$PATH"
-export PATH="$HOME/.local/bin:$PATH"
-
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
-
-# pnpm
-export PNPM_HOME="$HOME/.local/share/pnpm"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
-# pnpm end
-
-# opencode
-export PATH=$HOME/.opencode/bin:$PATH
-
-# browser remote debugging
-alias chrome-debug='google-chrome --remote-debugging-port=9222 --user-data-dir=~/.config/chrome-debug-profile --no-first-run'
-
-# Load local machine-only environment variables.
-[ -f "$HOME/.config/shell/env.local" ] && source "$HOME/.config/shell/env.local"
+[ -f "$HOME/.shell_shared" ] && source "$HOME/.shell_shared"

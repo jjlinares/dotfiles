@@ -62,6 +62,7 @@ fi
 # Shell configs
 log "Setting up shell configs..."
 backup_and_link "$DOTFILES_DIR/shell/.bashrc" "$HOME/.bashrc"
+backup_and_link "$DOTFILES_DIR/shell/.shell_shared" "$HOME/.shell_shared"
 backup_and_link "$DOTFILES_DIR/shell/.zshrc" "$HOME/.zshrc"
 backup_and_link "$DOTFILES_DIR/shell/.profile" "$HOME/.profile"
 

@@ -12,7 +12,7 @@ git clone https://github.com/jjlinares/dotfiles.git ~/dotfiles && ~/dotfiles/ins
 
 | Directory | Contents |
 |-----------|----------|
-| `shell/` | Bash, Zsh, profile configs (kubectl aliases) |
+| `shell/` | Bash, Zsh, shared shell config, profile configs |
 | `git/` | Git config and global ignore |
 | `agents/` | Shared agent prompts and skills (merged into `~/.claude`) |
 | `claude/` | Claude-specific config (merged into `~/.claude`) |
@@ -74,6 +74,7 @@ dotfiles/
 ├── README.md
 ├── shell/
 │   ├── .bashrc
+│   ├── .shell_shared
 │   ├── .zshrc
 │   └── .profile
 ├── git/
