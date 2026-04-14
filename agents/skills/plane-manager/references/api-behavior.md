@@ -14,6 +14,7 @@ Use this file when the task depends on route selection, create semantics, or res
 
 - Projects list: paginated envelope with `results`
 - Members list: plain array
+- Project members list: docs show nested arrays, live route `/projects/{project_id}/project-members/` returns a flat array of member objects
 - Type list: plain array on the live route
 - Work items list: paginated envelope with `results`
 - Epics list: paginated envelope with `results`
