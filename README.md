@@ -24,14 +24,18 @@ git clone https://github.com/jjlinares/dotfiles.git ~/dotfiles && ~/dotfiles/ins
 
 The `install.sh` script will:
 
-1. Install Oh My Zsh (if not present)
-2. Install Claude Code CLI (if not present)
-3. Install Codex CLI (if not present, requires `npm`)
-4. Symlink `agents/*` into `~/.claude/*`
-5. Map `agents/AGENTS.md` to `~/.claude/CLAUDE.md` (and migrate old `~/.claude/AGENTS.md`)
-6. Symlink `claude/*` into `~/.claude/*`
-7. Backup existing configs to `*.bak`
-8. Install Cursor/VS Code extensions (host only)
+1. Ensure `curl` is installed for downloads
+2. Install Oh My Zsh (if not present)
+3. Install ripgrep (`rg`) from the latest GitHub release `.deb` (if not present)
+4. Install `yq` from the latest GitHub release (if not present)
+5. Install GitHub CLI (if not present)
+6. Install Claude Code CLI (if not present)
+7. Install Codex CLI (if not present, requires `npm`)
+8. Symlink `agents/*` into `~/.claude/*`
+9. Map `agents/AGENTS.md` to `~/.claude/CLAUDE.md` (and migrate old `~/.claude/AGENTS.md`)
+10. Symlink `claude/*` into `~/.claude/*`
+11. Backup existing configs to `*.bak`
+12. Install Cursor/VS Code extensions (host only)
 
 ## Devcontainers
 

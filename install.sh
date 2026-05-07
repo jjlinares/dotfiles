@@ -35,6 +35,15 @@ backup_and_link() {
     log "Linked $dest -> $src"
 }
 
+# Ensure curl is available for downloads
+if ! command -v curl &> /dev/null; then
+    log "Installing curl..."
+    sudo apt update
+    sudo apt install curl -y
+else
+    log "curl already installed"
+fi
+
 # Install Oh My Zsh if not present
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
     log "Installing Oh My Zsh..."
@@ -43,13 +52,34 @@ else
     log "Oh My Zsh already installed"
 fi
 
+# Install ripgrep
+if ! command -v rg &> /dev/null; then
+    log "Installing ripgrep..."
+    RIPGREP_URL=$(curl -fsSL https://api.github.com/repos/BurntSushi/ripgrep/releases/latest | grep 'browser_download_url.*amd64.deb"' | cut -d '"' -f 4 | head -n 1)
+    tmp_dir=$(mktemp -d)
+    curl -fsSL "$RIPGREP_URL" -o "$tmp_dir/ripgrep.deb"
+    sudo dpkg -i "$tmp_dir/ripgrep.deb"
+    rm -rf "$tmp_dir"
+else
+    log "ripgrep already installed"
+fi
+
+# Install yq
+if ! command -v yq &> /dev/null; then
+    log "Installing yq..."
+    sudo curl -fsSL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o /usr/local/bin/yq
+    sudo chmod +x /usr/local/bin/yq
+else
+    log "yq already installed"
+fi
+
 # Install GitHub CLI
 if ! command -v gh &> /dev/null; then
     log "Installing GitHub CLI..."
-    (type -p wget >/dev/null || (sudo apt update && sudo apt install wget -y)) \
-        && sudo mkdir -p -m 755 /etc/apt/keyrings \
-        && out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-        && cat $out | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+    sudo mkdir -p -m 755 /etc/apt/keyrings \
+        && out=$(mktemp) \
+        && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o "$out" \
+        && cat "$out" | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
         && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
         && sudo mkdir -p -m 755 /etc/apt/sources.list.d \
         && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
