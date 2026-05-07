@@ -14,9 +14,10 @@ git clone https://github.com/jjlinares/dotfiles.git ~/dotfiles && ~/dotfiles/ins
 |-----------|----------|
 | `shell/` | Bash, Zsh, shared shell config, profile configs |
 | `git/` | Git config and global ignore |
-| `agents/` | Shared agent prompts and skills (merged into `~/.claude`) |
-| `claude/` | Claude-specific config (merged into `~/.claude`) |
+| `agents/` | Shared `AGENTS.md`, agent prompts, and skills |
+| `claude/` | Claude-specific config (symlinked into `~/.claude`) |
 | `codex/` | Codex setup helpers |
+| `pi/` | Pi Coding Agent setup helpers |
 | `cursor/` | Cursor IDE settings, keybindings, extensions |
 | `vscode/` | VS Code extensions |
 
@@ -31,11 +32,10 @@ The `install.sh` script will:
 5. Install GitHub CLI (if not present)
 6. Install Claude Code CLI (if not present)
 7. Install Codex CLI (if not present, requires `npm`)
-8. Symlink `agents/*` into `~/.claude/*`
-9. Map `agents/AGENTS.md` to `~/.claude/CLAUDE.md` (and migrate old `~/.claude/AGENTS.md`)
-10. Symlink `claude/*` into `~/.claude/*`
-11. Backup existing configs to `*.bak`
-12. Install Cursor/VS Code extensions (host only)
+8. Install Pi Coding Agent (if not present, requires `npm`)
+9. Set up shared agent instructions and skills for Claude, Codex, and Pi
+10. Backup existing configs to `*.bak`
+11. Install Cursor/VS Code extensions (host only)
 
 ## Devcontainers
 
@@ -91,6 +91,8 @@ dotfiles/
 ├── claude/
 │   └── settings.json
 ├── codex/
+│   └── setup.sh
+├── pi/
 │   └── setup.sh
 ├── cursor/
 │   ├── settings.json
