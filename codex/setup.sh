@@ -46,10 +46,10 @@ install_codex_cli() {
 }
 
 setup_codex_agents_md() {
-    mkdir -p "$HOME/.agents"
+    mkdir -p "$HOME/.codex"
 
     if [ -f "$DOTFILES_DIR/agents/AGENTS.md" ]; then
-        backup_and_link "$DOTFILES_DIR/agents/AGENTS.md" "$HOME/.agents/AGENTS.md"
+        backup_and_link "$DOTFILES_DIR/agents/AGENTS.md" "$HOME/.codex/AGENTS.md"
     fi
 }
 
