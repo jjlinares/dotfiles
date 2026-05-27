@@ -23,6 +23,17 @@ esac
 # opencode
 export PATH="$HOME/.opencode/bin:$PATH"
 
+# pi in tmux
+tpi() {
+  if [ -z "$1" ]; then
+    echo "usage: tpi <session-id>" >&2
+    return 2
+  fi
+
+  local name="$1"
+  tmux new -A -s "$name" "pi --session-id $(printf '%q' "$name")"
+}
+
 # Browser-Use
 export PATH="$HOME/.browser-use-env/bin:$HOME/.local/bin:$PATH"
 
