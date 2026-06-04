@@ -1,5 +1,5 @@
 ---
-name: pr-create
+name: create-pr
 description: This skill should be used when the user asks to "create a PR", "open a pull request", "prepare PR description", "write a reviewer guide", "organize code review", or needs a structured PR package for a completed feature branch.
 ---
 # PR Creation Skill
