@@ -37,5 +37,7 @@ tpi() {
 # Browser-Use
 export PATH="$HOME/.browser-use-env/bin:$HOME/.local/bin:$PATH"
 
+export BH_DOMAIN_SKILLS=1
+
 # Load local machine-only environment variables.
 [ -f "$HOME/.config/shell/env.local" ] && source "$HOME/.config/shell/env.local"
