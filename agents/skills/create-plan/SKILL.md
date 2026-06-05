@@ -50,14 +50,28 @@ Avoid:
 
 ### Phases
 
-Make phases small enough for the user to verify manually.
+Build phases as tracer bullets: tiny end-to-end slices through all necessary layers. Ship the smallest thing that validates the architecture, get feedback, then expand.
+
+A good phase should:
+
+- Prove one user-visible or system-visible behavior.
+- Touch every required layer for that behavior, but only as narrowly as needed.
+- Be small enough for the user to verify manually.
+- Reduce uncertainty before adding breadth, persistence, reporting, or polish.
 
 Each phase should include:
 
 - Short phase title.
 - One-sentence purpose.
-- `Tasks:` bullet list.
-- `Verification:` bullet list.
+- `Tasks:` checkbox list.
+- `Verification:` checkbox list.
+
+Use checkboxes for top-level task and verification items:
+
+- `- [ ]` for incomplete items.
+- `- [x]` for completed items.
+
+Keep nested detail bullets plain unless they are independently trackable tasks.
 
 Use `Verification`, not vague exit criteria, when the user wants to personally verify progress.
 
@@ -70,25 +84,25 @@ Prove the local service can receive input and return useful output.
 
 Tasks:
 
-- Start a local server.
-- Accept the minimal message shape.
-- Log useful diagnostics.
+- [ ] Start a local server.
+- [ ] Accept the minimal message shape.
+- [ ] Log useful diagnostics.
 
 Verification:
 
-- Run the server locally.
-- Send a sample message.
-- See the expected response in logs or UI.
+- [ ] Run the server locally.
+- [ ] Send a sample message.
+- [ ] See the expected response in logs or UI.
 ```
 
-Phase rules:
+Phase construction rules:
 
-- Order phases by dependency, not by ideal architecture.
-- Keep the first phase as a narrow proof.
+- Order phases by dependency and risk, not by ideal architecture.
+- Keep Phase 1 as the narrowest useful tracer bullet.
 - Do not hide risky work in broad phases like "integration".
-- Include failure/cleanup lifecycle before persistence when relevant.
-- Put persistence after live behavior unless persistence is the central goal.
-- Put summaries/reporting after source data capture unless summary is the central goal.
+- Prefer live behavior before persistence unless persistence is the central risk.
+- Add cleanup/failure lifecycle before expanding happy-path features.
+- Add summaries/reporting after source data capture unless summary is the central behavior.
 
 ### Open questions and future decisions
 
@@ -119,15 +133,30 @@ Not:
 - Need to think about transport.
 ```
 
+## Progress Tracking
+
+When creating or updating plans:
+
+- Use `- [ ]` for incomplete task and verification items.
+- Use `- [x]` only when completion is known from explicit user confirmation, executed checks, commits, or inspected code.
+- Treat a phase as complete only when all top-level task and verification checkboxes in that phase are checked.
+- Do not mark verification complete just because implementation code exists.
+- Preserve existing checkbox state unless new evidence changes it.
+- When the user says they verified something, mark the matching verification items complete.
+
 ## Editing Existing Plans
 
 When revising a plan:
 
 - Preserve the three-section shape.
+- Convert bare task and verification bullets to checkboxes when missing.
+- Mark already-completed items with `[x]` only from explicit evidence.
+- Leave future or unverified items as `[ ]`.
 - Remove stale assumptions immediately.
 - Move decided future items into `Goal` or `Phases`.
 - Keep wording direct and current.
 - Avoid expanding scope while cleaning up.
+- Do not rewrite unrelated plan prose while updating progress.
 
 ## Style
 
