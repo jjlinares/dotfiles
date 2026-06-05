@@ -16,7 +16,7 @@ Use exactly these top-level sections unless the user explicitly asks otherwise:
 2. `Phases`
 3. `Open questions and future decisions`
 
-Prefer writing plan files under `docs/` unless the user gives another path.
+Write plan files under `docs/plans/` unless the user gives another path.
 
 ## Workflow
 
