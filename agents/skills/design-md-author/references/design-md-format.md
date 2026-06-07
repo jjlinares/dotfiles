@@ -55,13 +55,36 @@ Keep frontmatter tokenized and reusable:
 - `version`: usually `alpha`.
 - `name`: source name plus `design-analysis`.
 - `description`: single paragraph, 2–4 sentences, high-density visual summary.
-- `colors`: semantic roles with exact hex values.
+- `colors`: semantic roles with hex values from site evidence where possible.
 - `typography`: complete type tokens with family, size, weight, line height, letter spacing.
 - `rounded`: radius scale from none/small to pill/full.
 - `spacing`: practical spacing scale.
 - `components`: reusable UI recipes that reference token groups.
 
 Prefer token references over repeated raw values inside `components`.
+
+### Inferred Value Callouts
+
+Mark only inferred values. Do not label observed/computed values as exact. Absence of an inferred callout means the value came from site evidence such as CSS variables, computed styles, assets, or screenshots.
+
+Use inline YAML comments for inferred tokens:
+
+```yaml
+typography:
+  display-logo:
+    letterSpacing: 8px # inferred from SVG/logo appearance
+
+spacing:
+  section: 96px # inferred normalized large section rhythm
+```
+
+Use prose/table callouts for inferred narrative values:
+
+```markdown
+| Mobile | < 640px (inferred) | Stack grids; collapse nav. |
+```
+
+List all inferred tokens again in `Known Gaps` so future agents know where not to over-trust the values.
 
 ## Markdown Section Requirements
 
@@ -96,7 +119,7 @@ Provide breakpoint table and collapse rules. Cover nav, hero, grids/cards, image
 Give concrete prompts an agent can use to build in the style. Include quick rules for extending pages without breaking the language.
 
 ### Known Gaps
-List uncertain values, inaccessible proprietary fonts, missing states, untested breakpoints, and estimated tokens.
+List uncertain values, inaccessible proprietary fonts, missing states, untested breakpoints, and estimated tokens. Include every inferred value already called out inline. Do not create a parallel "exact values" list.
 
 ## Extraction Checklist
 
@@ -108,15 +131,16 @@ Before writing, inspect:
 - Hover/focus states if possible.
 - CSS variables and loaded font files.
 - Repeated motifs: gradients, lines, photography, illustrations, icons, grids.
+- Values that could not be observed but are useful as normalized design tokens; mark these with `# inferred` and repeat them in `Known Gaps`.
 
 ## Writing Rules
 
 Write like a design engineer, not a marketer:
-- Use exact values.
+- Use observed values where available.
 - Use token references.
 - Explain where each choice appears.
 - State prohibitions.
-- Separate evidence from inference.
+- Mark inferred values only; do not label observed values as exact.
 - Keep prose dense and useful.
 
 Avoid:

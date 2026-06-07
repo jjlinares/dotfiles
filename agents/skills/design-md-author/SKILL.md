@@ -6,6 +6,8 @@ version: 0.1.0
 
 # DESIGN.md Author
 
+Prefer browser automation for website-derived design docs. If the `browser` skill / CDP / Playwright / Puppeteer / DevTools-style access is unavailable for a live website, stop and tell the user reliable token extraction needs an inspectable browser or equivalent tool; screenshots alone only support approximation.
+
 Create implementation-grade `DESIGN.md` files that let coding/design agents reproduce a visual language from tokens, rules, and guardrails.
 
 A good `DESIGN.md` is not brand fluff. It is a compact design-system spec: YAML token catalog first, then markdown instructions explaining where tokens appear, how layouts behave, what to imitate, and what to avoid.
@@ -53,6 +55,8 @@ Name tokens semantically, not visually-only. Prefer `primary`, `ink`, `canvas`, 
 
 Reference tokens inside components with `{colors.*}`, `{typography.*}`, `{rounded.*}`, and `{spacing.*}`. Keep YAML practical, not exhaustive. Include tokens needed to rebuild the visible interface.
 
+Mark inferred values only. Do not label observed/computed values as "exact". Use inline YAML comments for inferred token values, e.g. `section: 96px # inferred normalized section rhythm` or `letterSpacing: 8px # inferred from SVG/logo appearance`. In prose, say "inferred" only where the value is normalized, estimated, conventional, or visually derived.
+
 ### 4. Write the Narrative Spec
 
 Explain the design language in concrete terms:
@@ -67,7 +71,22 @@ Use direct, implementation-grade language. Prefer: "Use 1px hairlines and stacke
 
 ### 5. Mark Uncertainty Honestly
 
-Do not fabricate exact values when evidence is missing. Use best estimates only when needed, then list them under `Known Gaps`. Include font substitutes when proprietary fonts appear.
+Do not fabricate precision when evidence is missing. Use best estimates only when needed. Mark those values as inferred inline where they appear and list them under `Known Gaps`.
+
+Use this pattern:
+- Observed/computed/CSS values: write the value with no label.
+- Inferred/normalized/estimated values: append `# inferred ...` in YAML and mention "inferred" in prose/tables.
+- `Known Gaps`: collect every inferred token, unverified state, inaccessible page, proprietary font, or untested breakpoint.
+
+Examples:
+```yaml
+spacing:
+  section: 96px # inferred normalized large section rhythm
+
+typography:
+  display-logo:
+    letterSpacing: 8px # inferred from SVG/logo appearance
+```
 
 ### 6. Validate
 
