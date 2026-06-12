@@ -1,36 +1,19 @@
 # HTML Report Format
 
-The architectural review is rendered as a single self-contained HTML file in the Linux temp directory. Use `${TMPDIR:-/tmp}` and write to `<tmpdir>/architecture-review-<timestamp>.html`; open it with `xdg-open <path>`. Tailwind and Mermaid both come from CDNs. Mermaid handles graph-shaped diagrams reliably; hand-built divs and inline SVG handle the more editorial visuals like mass diagrams and cross-sections. Mix the two — don't lean on Mermaid for everything, it'll start to look generic.
+Use the `create-html` skill for generic HTML mechanics: temp-file placement, opening the file, Tailwind via CDN, and optional Mermaid via CDN. This file only defines the architecture-review structure and content standards.
 
-## Scaffold
+Render the review as a single local HTML file named `architecture-review-<timestamp>.html`. Make it visual. Mermaid is useful for graph-shaped relationships; hand-built HTML/SVG is better for editorial visuals like mass diagrams, cross-sections, and collapsed call graphs. Mix them — don't lean on Mermaid for everything, it'll start to look generic.
+
+## Page structure
+
+Use this page shape:
 
 ```html
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Architecture review — {{repo name}}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script type="module">
-      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
-    </script>
-    <style>
-      /* small custom layer for things Tailwind doesn't cover cleanly:
-         dashed seam lines, hand-drawn-feeling arrow heads, etc. */
-      .seam { stroke-dasharray: 4 4; }
-      .leak { stroke: #dc2626; }
-      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
-    </style>
-  </head>
-  <body class="bg-stone-50 text-slate-900 font-sans">
-    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
-      <header>...</header>
-      <section id="candidates" class="space-y-10">...</section>
-      <section id="top-recommendation">...</section>
-    </main>
-  </body>
-</html>
+<main>
+  <header>repo, date, legend</header>
+  <section id="candidates">candidate cards</section>
+  <section id="top-recommendation">top recommendation</section>
+</main>
 ```
 
 ## Header
@@ -97,7 +80,7 @@ Before: a tree of function calls rendered as nested boxes. After: the same tree 
 - Colour sparingly: one accent, plus red for leakage and amber for warnings.
 - Keep diagrams ~320px tall so before/after sits comfortably side by side without scrolling.
 - Use `text-xs uppercase tracking-wider` for module labels inside diagrams — they should read as schematic, not as UI.
-- The only scripts are the Tailwind CDN and the Mermaid ESM import. The report is otherwise static — no app code, no interactivity beyond Mermaid's own rendering.
+- Keep it static. Avoid app code and runtime interactivity unless the content truly needs it.
 
 ## Top recommendation section
 
