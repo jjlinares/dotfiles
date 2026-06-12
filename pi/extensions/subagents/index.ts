@@ -211,7 +211,7 @@ function renderStatusCard(
 		elapsed,
 	].filter(Boolean).join(" · ");
 	const lines = [`${stateGlyph} ${theme.fg("toolTitle", theme.bold("subagents"))} ${theme.fg("dim", `· ${status.state} · ${stats}`)}`];
-	if (!expanded && status.state === "running") lines.push(theme.fg("accent", "  Press Ctrl+O for live detail"));
+	if (!expanded && status.state === "running") lines.push(theme.fg("accent", "  Press Ctrl+O for details"));
 
 	for (const task of status.tasks) {
 		const label = `${task.index + 1}. ${task.name}`;

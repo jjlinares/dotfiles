@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import assert from "node:assert/strict";
+import { runSubagents } from "./executor.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const runner = path.join(here, "runner.mjs");
@@ -35,7 +36,7 @@ if (task.includes("many-jsonl")) {
   for (let i = 0; i < 20; i++) console.log(JSON.stringify({ type: "tool_execution_start", toolName: "read", args: { path: "file-" + i } }));
 }
 console.log(JSON.stringify({ type: "tool_execution_start", toolName: "read", args: { path: "README.md" } }));
-console.log(JSON.stringify({
+const message = {
   type: "message_end",
   message: {
     role: "assistant",
@@ -43,7 +44,9 @@ console.log(JSON.stringify({
     stopReason: "stop",
     usage: { input: 3, output: 5, cacheRead: 0, cacheWrite: 0, cost: { total: 0.02 }, totalTokens: 8 }
   }
-}));
+};
+console.log(JSON.stringify(message));
+if (task.includes("two-turns")) console.log(JSON.stringify(message));
 if (lingerAfterStop) setInterval(() => {}, 1000);
 `, "utf8");
   return fake;
@@ -93,6 +96,52 @@ test("runner completes parallel tasks and writes aggregate result", async () => 
   assert.match(events, /--thinking/);
   assert.match(events, /high/);
   assert.doesNotMatch(events, /child_event/);
+
+  assert.equal((await fs.stat(runDir)).mode & 0o777, 0o700);
+  assert.equal((await fs.stat(path.join(runDir, "status.json"))).mode & 0o777, 0o600);
+  assert.equal((await fs.stat(path.join(runDir, "result.md"))).mode & 0o777, 0o600);
+  assert.equal((await fs.stat(status.tasks[0].outputFile)).mode & 0o777, 0o600);
+  assert.equal((await fs.stat(path.join(runDir, "events.jsonl"))).mode & 0o777, 0o600);
+});
+
+test("runner accumulates usage across assistant turns", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-runner-test-"));
+  const fakePi = await makeFakePi(dir);
+  const { runDir, configPath } = await writeConfig(dir, {
+    runId: "turnsrun",
+    tasks: [
+      { id: "turnsrun-0", name: "turns", task: "two-turns", context: "fresh" },
+    ],
+  });
+
+  const result = await execNode([runner, configPath], { env: { ...process.env, PI_SUBAGENTS_PI_SCRIPT: fakePi } });
+  assert.equal(result.code, 0, result.stderr);
+
+  const status = JSON.parse(await fs.readFile(path.join(runDir, "status.json"), "utf8"));
+  assert.equal(status.tasks[0].usage.turns, 2);
+  assert.equal(status.tasks[0].usage.input, 6);
+  assert.equal(status.tasks[0].usage.output, 10);
+  assert.equal(status.tasks[0].usage.totalTokens, 16);
+  assert.equal(status.tasks[0].usage.cost, 0.04);
+});
+
+test("runner passes tool and system prompt mode arguments", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-runner-test-"));
+  const fakePi = await makeFakePi(dir);
+  const { runDir, configPath } = await writeConfig(dir, {
+    runId: "argsrun",
+    tasks: [
+      { id: "argsrun-0", name: "args", task: "inspect", context: "fresh", tools: false, systemPromptMode: "replace", systemPrompt: "Custom" },
+    ],
+  });
+
+  const result = await execNode([runner, configPath], { env: { ...process.env, PI_SUBAGENTS_PI_SCRIPT: fakePi } });
+  assert.equal(result.code, 0, result.stderr);
+
+  const events = await fs.readFile(path.join(runDir, "events.jsonl"), "utf8");
+  assert.match(events, /--no-tools/);
+  assert.match(events, /--system-prompt/);
+  assert.doesNotMatch(events, /--append-system-prompt/);
 });
 
 test("runner writes raw child jsonl only when includeJsonl is true", async () => {
@@ -174,6 +223,36 @@ test("runner marks failed task and exits nonzero", async () => {
 
   const stderr = await fs.readFile(status.tasks[1].stderrFile, "utf8");
   assert.match(stderr, /fake failure/);
+  assert.equal((await fs.stat(status.tasks[1].stderrFile)).mode & 0o777, 0o600);
+});
+
+test("runner does not launch queued tasks after abort", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-runner-test-"));
+  const fakePi = await makeFakePi(dir);
+  const runDir = path.join(dir, "run");
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), 50);
+
+  const { status } = await runSubagents({
+    runId: "abortrun",
+    runDir,
+    cwd: dir,
+    notify: "none",
+    concurrency: 1,
+    piScript: fakePi,
+    tasks: [
+      { id: "abortrun-0", name: "slow", task: "slow task", context: "fresh", cwd: dir },
+      { id: "abortrun-1", name: "queued", task: "inspect", context: "fresh", cwd: dir },
+    ],
+  }, { signal: controller.signal });
+
+  assert.equal(status.state, "failed");
+  assert.equal(status.tasks[0].state, "failed");
+  assert.equal(status.tasks[0].error, "Aborted");
+  assert.equal(status.tasks[1].state, "failed");
+  assert.equal(status.tasks[1].error, "Aborted before start");
+  const events = await fs.readFile(path.join(runDir, "events.jsonl"), "utf8");
+  assert.doesNotMatch(events, /queued/);
 });
 
 test("runner times out slow tasks", async () => {

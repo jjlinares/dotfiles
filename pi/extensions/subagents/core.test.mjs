@@ -5,6 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildRunConfig,
+  ensureDir,
   findRunDir,
   formatStatus,
   needsFork,
@@ -100,6 +101,13 @@ test("buildRunConfig assigns fork sessions only to forked tasks", () => {
   assert.equal(config.tasks[0].sessionFile, undefined);
   assert.equal(config.tasks[1].sessionFile, "/sessions/1.jsonl");
   assert.deepEqual(calls, [1]);
+});
+
+test("ensureDir creates private directories", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-core-test-"));
+  const dir = path.join(root, "private");
+  ensureDir(dir);
+  assert.equal((await fs.stat(dir)).mode & 0o777, 0o700);
 });
 
 test("findRunDir supports exact and prefix matches", async () => {

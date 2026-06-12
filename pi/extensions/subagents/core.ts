@@ -132,7 +132,8 @@ export const MAX_LISTED_RUNS = 12;
 export const DEFAULT_THINKING: ThinkingLevel = "medium";
 
 export function ensureDir(dir: string): void {
-	fs.mkdirSync(dir, { recursive: true });
+	fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+	try { fs.chmodSync(dir, 0o700); } catch {}
 }
 
 export function randomId(): string {

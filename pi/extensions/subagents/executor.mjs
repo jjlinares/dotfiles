@@ -15,12 +15,17 @@ function safeName(value) {
 
 function writeJsonAtomic(file, value) {
   const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`);
+  fs.writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
   fs.renameSync(tmp, file);
 }
 
 function appendEvent(eventsPath, event) {
-  fs.appendFileSync(eventsPath, `${JSON.stringify(event)}\n`);
+  fs.appendFileSync(eventsPath, `${JSON.stringify(event)}\n`, { mode: 0o600 });
+}
+
+function ensurePrivateDir(dir) {
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try { fs.chmodSync(dir, 0o700); } catch {}
 }
 
 function emptyUsage() {
@@ -51,7 +56,7 @@ function addUsage(target, message) {
   target.cacheRead += usage.cacheRead || 0;
   target.cacheWrite += usage.cacheWrite || 0;
   target.cost += usage.cost?.total || 0;
-  target.totalTokens = usage.totalTokens || target.totalTokens;
+  target.totalTokens += usage.totalTokens || ((usage.input || 0) + (usage.output || 0));
 }
 
 function getPiInvocation(args, config) {
@@ -156,11 +161,11 @@ function appendRawJsonl(taskStatus, line, rawJsonlBytes, config) {
   if (current >= maxBytes) return;
   if (current + size > maxBytes) {
     const marker = `{"type":"subagent_jsonl_truncated","maxBytes":${maxBytes}}\n`;
-    fs.appendFileSync(taskStatus.stdoutFile, marker);
+    fs.appendFileSync(taskStatus.stdoutFile, marker, { mode: 0o600 });
     rawJsonlBytes.set(taskStatus.stdoutFile, maxBytes);
     return;
   }
-  fs.appendFileSync(taskStatus.stdoutFile, chunk);
+  fs.appendFileSync(taskStatus.stdoutFile, chunk, { mode: 0o600 });
   rawJsonlBytes.set(taskStatus.stdoutFile, current + size);
 }
 
@@ -318,7 +323,7 @@ async function runTask(config, status, statusPath, eventsPath, task, index, opti
   child.stderr.on("data", (chunk) => {
     const text = chunk.toString();
     stderrBuffer += text;
-    fs.appendFileSync(taskStatus.stderrFile, text);
+    fs.appendFileSync(taskStatus.stderrFile, text, { mode: 0o600 });
   });
 
   const exitCode = await new Promise((resolve) => {
@@ -357,21 +362,32 @@ async function runTask(config, status, statusPath, eventsPath, task, index, opti
   taskStatus.currentToolArgs = undefined;
   taskStatus.currentToolStartedAt = undefined;
   taskStatus.currentPath = undefined;
-  fs.writeFileSync(taskStatus.outputFile, finalOutput, "utf8");
+  fs.writeFileSync(taskStatus.outputFile, finalOutput, { encoding: "utf8", mode: 0o600 });
   taskStatus.preview = finalOutput.split("\n").find((line) => line.trim())?.slice(0, 240) || "(no output)";
   appendEvent(eventsPath, { type: "task_end", ts: now(), index, name: task.name, exitCode: effectiveExitCode, error: taskStatus.error, forcedFinalDrain });
   persist(status, statusPath, options.onUpdate);
 }
 
-async function mapConcurrent(items, concurrency, fn) {
+async function mapConcurrent(items, concurrency, fn, signal) {
   let next = 0;
   const workers = Array.from({ length: Math.max(1, Math.min(concurrency, items.length)) }, async () => {
-    while (next < items.length) {
+    while (next < items.length && !signal?.aborted) {
       const index = next++;
       await fn(items[index], index);
     }
   });
   await Promise.all(workers);
+}
+
+function markQueuedAborted(status) {
+  for (const task of status.tasks) {
+    if (task.state !== "queued") continue;
+    task.state = "failed";
+    task.error = "Aborted before start";
+    task.completedAt = now();
+    task.updatedAt = now();
+    task.preview = task.error;
+  }
 }
 
 function writeAggregate(config, status, resultPath) {
@@ -380,19 +396,20 @@ function writeAggregate(config, status, resultPath) {
     return `## ${task.name} — ${task.state}\n\n${output}`;
   });
   const resultText = `# Subagent run ${config.runId}\n\n${sections.join("\n\n---\n\n")}\n`;
-  fs.writeFileSync(resultPath, resultText, "utf8");
+  fs.writeFileSync(resultPath, resultText, { encoding: "utf8", mode: 0o600 });
   return resultText;
 }
 
 export async function runSubagents(config, options = {}) {
-  fs.mkdirSync(config.runDir, { recursive: true });
+  ensurePrivateDir(config.runDir);
   const statusPath = path.join(config.runDir, "status.json");
   const eventsPath = path.join(config.runDir, "events.jsonl");
   const resultPath = path.join(config.runDir, "result.md");
   const status = createStatus(config);
   persist(status, statusPath, options.onUpdate);
   try {
-    await mapConcurrent(config.tasks, config.concurrency || 4, (task, index) => runTask(config, status, statusPath, eventsPath, task, index, options));
+    await mapConcurrent(config.tasks, config.concurrency || 4, (task, index) => runTask(config, status, statusPath, eventsPath, task, index, options), options.signal);
+    if (options.signal?.aborted) markQueuedAborted(status);
     const resultText = writeAggregate(config, status, resultPath);
     persist(status, statusPath, options.onUpdate);
     return { status, resultText, resultPath };
