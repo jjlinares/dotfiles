@@ -1,9 +1,11 @@
+import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 export type ContextMode = "fresh" | "fork";
 export type NotifyMode = "tui" | "followUp" | "none";
+export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
 
 export type TaskInput = {
 	name?: string;
@@ -12,6 +14,7 @@ export type TaskInput = {
 	systemPromptMode?: "append" | "replace";
 	context?: ContextMode;
 	model?: string;
+	thinking?: ThinkingLevel;
 	tools?: string | string[] | false;
 	cwd?: string;
 };
@@ -26,6 +29,7 @@ export type SubagentParams = {
 	tasks?: TaskInput[];
 	context?: ContextMode;
 	model?: string;
+	thinking?: ThinkingLevel;
 	tools?: string | string[] | false;
 	cwd?: string;
 	concurrency?: number;
@@ -55,6 +59,7 @@ export type RunStatus = {
 		cwd?: string;
 		context?: ContextMode;
 		model?: string;
+		thinking?: ThinkingLevel;
 		sessionFile?: string;
 		startedAt?: number;
 		completedAt?: number;
@@ -80,6 +85,7 @@ export type PlannedTask = Required<Pick<TaskInput, "task" | "context">> & {
 	systemPrompt?: string;
 	systemPromptMode: "append" | "replace";
 	model?: string;
+	thinking?: ThinkingLevel;
 	tools?: string | string[] | false;
 	cwd: string;
 	sessionFile?: string;
@@ -123,13 +129,14 @@ export function resolveTempScopeId(): string {
 export const RUN_ROOT = path.join(os.tmpdir(), `pi-subagents-${resolveTempScopeId()}`, "runs");
 export const DEFAULT_CONCURRENCY = 4;
 export const MAX_LISTED_RUNS = 12;
+export const DEFAULT_THINKING: ThinkingLevel = "medium";
 
 export function ensureDir(dir: string): void {
 	fs.mkdirSync(dir, { recursive: true });
 }
 
 export function randomId(): string {
-	return Math.random().toString(16).slice(2, 10);
+	return randomBytes(8).toString("hex");
 }
 
 export function safeName(value: string | undefined, fallback: string): string {
@@ -179,6 +186,7 @@ export function resolveTasks(params: SubagentParams): TaskInput[] {
 		systemPromptMode: params.systemPromptMode,
 		context: params.context,
 		model: params.model,
+		thinking: params.thinking,
 		tools: params.tools,
 		cwd: params.cwd,
 	}];
@@ -199,6 +207,7 @@ export function buildRunConfig(input: {
 		const context = task.context ?? topContext;
 		const systemPrompt = task.systemPrompt ?? params.systemPrompt;
 		const model = task.model ?? params.model;
+		const thinking = task.thinking ?? params.thinking ?? DEFAULT_THINKING;
 		const tools = task.tools ?? params.tools;
 		return {
 			id: `${runId}-${index}`,
@@ -208,6 +217,7 @@ export function buildRunConfig(input: {
 			systemPromptMode: task.systemPromptMode ?? params.systemPromptMode ?? "append",
 			context,
 			...(model ? { model } : {}),
+			...(thinking ? { thinking } : {}),
 			...(tools !== undefined ? { tools } : {}),
 			cwd: path.resolve(cwd, task.cwd ?? "."),
 			...(context === "fork" ? { sessionFile: forkSessionForIndex(index) } : {}),

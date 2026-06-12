@@ -63,7 +63,7 @@ test("runner completes parallel tasks and writes aggregate result", async () => 
   const { runDir, configPath } = await writeConfig(dir, {
     runId: "okrun",
     tasks: [
-      { id: "okrun-0", name: "one", task: "inspect one", context: "fresh" },
+      { id: "okrun-0", name: "one", task: "inspect one", context: "fresh", thinking: "high" },
       { id: "okrun-1", name: "two", task: "inspect two", context: "fresh" },
     ],
   });
@@ -77,6 +77,7 @@ test("runner completes parallel tasks and writes aggregate result", async () => 
   assert.deepEqual(status.tasks.map((task) => task.state), ["complete", "complete"]);
   assert.equal(status.tasks[0].usage.input, 3);
   assert.equal(status.tasks[1].usage.output, 5);
+  assert.equal(status.tasks[0].thinking, "high");
   assert.match(path.basename(status.tasks[0].outputFile), /^output-0-one\.md$/);
   assert.equal(await fs.readFile(path.join(runDir, "input-0-one.md"), "utf8"), "Task:\ninspect one\n");
   assert.match(await fs.readFile(status.tasks[0].outputFile, "utf8"), /result for Task: inspect one/);
@@ -89,6 +90,8 @@ test("runner completes parallel tasks and writes aggregate result", async () => 
   const files = await fs.readdir(runDir);
   assert.equal(files.some((file) => file.endsWith(".jsonl") && file.startsWith("task-")), false);
   const events = await fs.readFile(path.join(runDir, "events.jsonl"), "utf8");
+  assert.match(events, /--thinking/);
+  assert.match(events, /high/);
   assert.doesNotMatch(events, /child_event/);
 });
 

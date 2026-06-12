@@ -78,6 +78,7 @@ function createStatus(config) {
       cwd: task.cwd ?? config.cwd,
       context: task.context,
       model: task.model,
+      thinking: task.thinking,
       sessionFile: task.sessionFile,
       startedAt: undefined,
       completedAt: undefined,
@@ -135,6 +136,7 @@ function argsForTask(config, task, index) {
   if (task.sessionFile) args.push("--session", task.sessionFile);
   else args.push("--no-session");
   if (task.model) args.push("--model", task.model);
+  if (task.thinking) args.push("--thinking", task.thinking);
 
   const tools = normalizeTools(task.tools);
   if (tools === false) args.push("--no-tools");

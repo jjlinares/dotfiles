@@ -9,14 +9,19 @@ import {
   formatStatus,
   needsFork,
   notifyCompletion,
+  randomId,
   resolveTasks,
   statusPath,
 } from "./core.ts";
 
+test("randomId returns a 64-bit hex run id", () => {
+  assert.match(randomId(), /^[0-9a-f]{16}$/);
+});
+
 test("resolveTasks rejects missing or mixed execution modes", () => {
   assert.throws(() => resolveTasks({}), /exactly one/);
   assert.throws(() => resolveTasks({ task: "one", tasks: [{ task: "two" }] }), /exactly one/);
-  assert.deepEqual(resolveTasks({ task: "one", name: "solo" }), [{ name: "solo", task: "one", context: undefined, cwd: undefined, model: undefined, systemPrompt: undefined, systemPromptMode: undefined, tools: undefined }]);
+  assert.deepEqual(resolveTasks({ task: "one", name: "solo" }), [{ name: "solo", task: "one", context: undefined, cwd: undefined, model: undefined, thinking: undefined, systemPrompt: undefined, systemPromptMode: undefined, tools: undefined }]);
 });
 
 test("buildRunConfig applies defaults and task overrides", () => {
@@ -26,13 +31,14 @@ test("buildRunConfig applies defaults and task overrides", () => {
       cwd: "repo",
       systemPrompt: "Default reviewer",
       model: "model-a",
+      thinking: "high",
       tools: "read,bash",
       notify: "followUp",
       timeoutMs: 1234,
       includeJsonl: true,
       tasks: [
         { task: "a" },
-        { name: "custom", task: "b", systemPrompt: "Special", model: "model-b", tools: false, cwd: "pkg" },
+        { name: "custom", task: "b", systemPrompt: "Special", model: "model-b", thinking: "low", tools: false, cwd: "pkg" },
       ],
     },
     ctxCwd: "/work",
@@ -48,12 +54,25 @@ test("buildRunConfig applies defaults and task overrides", () => {
   assert.equal(config.tasks[0].name, "Default-reviewer");
   assert.equal(config.tasks[0].systemPrompt, "Default reviewer");
   assert.equal(config.tasks[0].model, "model-a");
+  assert.equal(config.tasks[0].thinking, "high");
   assert.equal(config.tasks[0].tools, "read,bash");
   assert.equal(config.tasks[1].name, "custom");
   assert.equal(config.tasks[1].systemPrompt, "Special");
   assert.equal(config.tasks[1].model, "model-b");
+  assert.equal(config.tasks[1].thinking, "low");
   assert.equal(config.tasks[1].tools, false);
   assert.equal(config.tasks[1].cwd, "/work/repo/pkg");
+});
+
+test("buildRunConfig defaults thinking to medium", () => {
+  const config = buildRunConfig({
+    params: { task: "inspect" },
+    ctxCwd: "/work",
+    runId: "think",
+    runDir: "/tmp/think",
+  });
+
+  assert.equal(config.tasks[0].thinking, "medium");
 });
 
 test("buildRunConfig assigns fork sessions only to forked tasks", () => {

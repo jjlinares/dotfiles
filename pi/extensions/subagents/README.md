@@ -8,7 +8,7 @@ A subagent is not a special object type. It is a child Pi session launched with:
 
 - a task
 - an optional system prompt
-- optional Pi config such as model, tools, cwd, and context mode
+- optional Pi config such as model, thinking, tools, cwd, and context mode
 
 This extension provides orchestration infrastructure only. It does not own your agent taxonomy. The parent session decides what child roles are needed for the current problem and passes those roles as prompts.
 
@@ -79,7 +79,8 @@ Top-level:
 | `systemPrompt` | Default role/config prompt. Used by single child and fanout tasks that omit their own. |
 | `systemPromptMode` | `append` default, or `replace`. |
 | `context` | `fresh` default, or `fork`. |
-| `model` | Child model override. |
+| `model` | Child model override. Thinking suffixes like `sonnet:high` also work. |
+| `thinking` | Child thinking level: `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. Default `medium`. Passed as `--thinking`. |
 | `tools` | Child tool allowlist string/array, or `false` for `--no-tools`. Omit for normal Pi tools. |
 | `cwd` | Child working directory. |
 | `concurrency` | Parallel concurrency. Default `4`. |
@@ -98,6 +99,7 @@ Per-task overrides inside `tasks[]`:
 | `systemPromptMode` | `append` or `replace`. |
 | `context` | Override top-level `context`. |
 | `model` | Override top-level `model`. |
+| `thinking` | Override top-level `thinking`. |
 | `tools` | Override top-level `tools`. |
 | `cwd` | Relative to top-level resolved cwd. |
 

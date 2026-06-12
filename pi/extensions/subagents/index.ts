@@ -40,6 +40,8 @@ const ToolOverride = Type.Unsafe({
 	description: "Child tool allowlist as comma-separated string/array, or false for --no-tools. Omit for normal Pi tools.",
 });
 
+const ThinkingSchema = Type.String({ enum: ["off", "minimal", "low", "medium", "high", "xhigh"], description: "Child thinking level passed to Pi --thinking. Default medium." });
+
 const TaskSchema = Type.Object({
 	name: Type.Optional(Type.String({ description: "Human-readable child label." })),
 	task: Type.String({ description: "User task for this child Pi session." }),
@@ -47,6 +49,7 @@ const TaskSchema = Type.Object({
 	systemPromptMode: Type.Optional(Type.String({ enum: ["append", "replace"], description: "Default append." })),
 	context: Type.Optional(Type.String({ enum: ["fresh", "fork"] })),
 	model: Type.Optional(Type.String()),
+	thinking: Type.Optional(ThinkingSchema),
 	tools: Type.Optional(ToolOverride),
 	cwd: Type.Optional(Type.String()),
 }, { additionalProperties: false });
@@ -63,6 +66,7 @@ const SubagentParamsSchema = Type.Object({
 
 	context: Type.Optional(Type.String({ enum: ["fresh", "fork"], description: "Default fresh." })),
 	model: Type.Optional(Type.String({ description: "Default model override for children." })),
+	thinking: Type.Optional(ThinkingSchema),
 	tools: Type.Optional(ToolOverride),
 	cwd: Type.Optional(Type.String({ description: "Default child cwd." })),
 	concurrency: Type.Optional(Type.Integer({ minimum: 1, maximum: 16, description: "Parallel child concurrency. Default 4." })),
@@ -216,6 +220,7 @@ function renderStatusCard(
 			task.state,
 			expanded && task.context ? `context ${task.context}` : "",
 			expanded && task.model ? `model ${task.model}` : "",
+			expanded && task.thinking ? `thinking ${task.thinking}` : "",
 			task.toolCount ? `${task.toolCount} tools` : "",
 			task.usage?.turns ? `${task.usage.turns} turns` : "",
 			tokenCount ? `${compactNumber(tokenCount)} tok` : "",
@@ -318,7 +323,7 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 		label: "Subagent",
 		description: [
 			"Launch foreground or async/background child Pi sessions for read-only fanout.",
-			"No predefined agents: pass task plus optional systemPrompt/model/tools/cwd/context.",
+			"No predefined agents: pass task plus optional systemPrompt/model/thinking/tools/cwd/context.",
 			"Default is foreground/blocking; set async:true for background execution.",
 			"For background runs, default notify is TUI completion notification; set notify:'followUp' to wake the parent agent.",
 			"Children are instructed read-only, but tools are not hard-restricted unless you pass tools or tools:false.",
