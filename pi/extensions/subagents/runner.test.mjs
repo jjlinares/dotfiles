@@ -95,7 +95,9 @@ test("runner completes parallel tasks and writes aggregate result", async () => 
   const events = await fs.readFile(path.join(runDir, "events.jsonl"), "utf8");
   assert.match(events, /--thinking/);
   assert.match(events, /high/);
+  assert.doesNotMatch(events, /--append-system-prompt/);
   assert.doesNotMatch(events, /child_event/);
+  assert.equal(files.some((file) => file.startsWith("prompt-")), false);
 
   assert.equal((await fs.stat(runDir)).mode & 0o777, 0o700);
   assert.equal((await fs.stat(path.join(runDir, "status.json"))).mode & 0o777, 0o600);
@@ -125,13 +127,13 @@ test("runner accumulates usage across assistant turns", async () => {
   assert.equal(status.tasks[0].usage.cost, 0.04);
 });
 
-test("runner passes tool and system prompt mode arguments", async () => {
+test("runner passes tool and system prompt append arguments", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-runner-test-"));
   const fakePi = await makeFakePi(dir);
   const { runDir, configPath } = await writeConfig(dir, {
     runId: "argsrun",
     tasks: [
-      { id: "argsrun-0", name: "args", task: "inspect", context: "fresh", tools: false, systemPromptMode: "replace", systemPrompt: "Custom" },
+      { id: "argsrun-0", name: "args", task: "inspect", context: "fresh", tools: false, appendSystemPrompt: "Custom" },
     ],
   });
 
@@ -140,8 +142,9 @@ test("runner passes tool and system prompt mode arguments", async () => {
 
   const events = await fs.readFile(path.join(runDir, "events.jsonl"), "utf8");
   assert.match(events, /--no-tools/);
-  assert.match(events, /--system-prompt/);
-  assert.doesNotMatch(events, /--append-system-prompt/);
+  assert.match(events, /--append-system-prompt/);
+  assert.doesNotMatch(events, /"--system-prompt"/);
+  assert.equal(await fs.readFile(path.join(runDir, "prompt-0-args.md"), "utf8"), "Custom");
 });
 
 test("runner writes raw child jsonl only when includeJsonl is true", async () => {

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Child Pi session launcher for read-only fanout workflows",
+  "description": "Child Pi session launcher for orchestration fanout workflows",
   "keywords": [
     "pi-package",
     "pi",

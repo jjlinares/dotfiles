@@ -45,8 +45,7 @@ const ThinkingSchema = Type.String({ enum: ["off", "minimal", "low", "medium", "
 const TaskSchema = Type.Object({
 	name: Type.Optional(Type.String({ description: "Human-readable child label." })),
 	task: Type.String({ description: "User task for this child Pi session." }),
-	systemPrompt: Type.Optional(Type.String({ description: "Role/config prompt for this child." })),
-	systemPromptMode: Type.Optional(Type.String({ enum: ["append", "replace"], description: "Default append." })),
+	appendSystemPrompt: Type.Optional(Type.String({ description: "Optional role/config prompt appended to Pi's core system prompt for this child. No prompt override is passed when omitted." })),
 	context: Type.Optional(Type.String({ enum: ["fresh", "fork"] })),
 	model: Type.Optional(Type.String()),
 	thinking: Type.Optional(ThinkingSchema),
@@ -60,8 +59,7 @@ const SubagentParamsSchema = Type.Object({
 
 	task: Type.Optional(Type.String({ description: "Single child task. Use either task or tasks." })),
 	name: Type.Optional(Type.String({ description: "Single child label." })),
-	systemPrompt: Type.Optional(Type.String({ description: "Default role/config prompt; used by single child and by fanout tasks that omit systemPrompt." })),
-	systemPromptMode: Type.Optional(Type.String({ enum: ["append", "replace"], description: "Default append." })),
+	appendSystemPrompt: Type.Optional(Type.String({ description: "Optional default role/config prompt appended to Pi's core system prompt; used by single child and by fanout tasks that omit appendSystemPrompt. No prompt override is passed when omitted." })),
 	tasks: Type.Optional(Type.Array(TaskSchema, { description: "Parallel fanout tasks." })),
 
 	context: Type.Optional(Type.String({ enum: ["fresh", "fork"], description: "Default fresh." })),
@@ -322,11 +320,11 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 		name: "subagent",
 		label: "Subagent",
 		description: [
-			"Launch foreground or async/background child Pi sessions for read-only fanout.",
-			"No predefined agents: pass task plus optional systemPrompt/model/thinking/tools/cwd/context.",
+			"Launch foreground or async/background child Pi sessions for orchestration fanout.",
+			"No predefined agents: pass task plus optional appendSystemPrompt/model/thinking/tools/cwd/context.",
+			"The extension adds no default child role or safety prompt; the orchestrator must define instructions and tool access explicitly.",
 			"Default is foreground/blocking; set async:true for background execution.",
 			"For background runs, default notify is TUI completion notification; set notify:'followUp' to wake the parent agent.",
-			"Children are instructed read-only, but tools are not hard-restricted unless you pass tools or tools:false.",
 		].join(" "),
 		parameters: SubagentParamsSchema,
 		async execute(_id, rawParams, signal, onUpdate, ctx) {

@@ -10,8 +10,7 @@ export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhi
 export type TaskInput = {
 	name?: string;
 	task: string;
-	systemPrompt?: string;
-	systemPromptMode?: "append" | "replace";
+	appendSystemPrompt?: string;
 	context?: ContextMode;
 	model?: string;
 	thinking?: ThinkingLevel;
@@ -24,8 +23,7 @@ export type SubagentParams = {
 	id?: string;
 	task?: string;
 	name?: string;
-	systemPrompt?: string;
-	systemPromptMode?: "append" | "replace";
+	appendSystemPrompt?: string;
 	tasks?: TaskInput[];
 	context?: ContextMode;
 	model?: string;
@@ -82,8 +80,7 @@ export type RunStatus = {
 export type PlannedTask = Required<Pick<TaskInput, "task" | "context">> & {
 	id: string;
 	name: string;
-	systemPrompt?: string;
-	systemPromptMode: "append" | "replace";
+	appendSystemPrompt?: string;
 	model?: string;
 	thinking?: ThinkingLevel;
 	tools?: string | string[] | false;
@@ -183,8 +180,7 @@ export function resolveTasks(params: SubagentParams): TaskInput[] {
 	return hasTasks ? params.tasks! : [{
 		name: params.name,
 		task: params.task!,
-		systemPrompt: params.systemPrompt,
-		systemPromptMode: params.systemPromptMode,
+		appendSystemPrompt: params.appendSystemPrompt,
 		context: params.context,
 		model: params.model,
 		thinking: params.thinking,
@@ -206,16 +202,15 @@ export function buildRunConfig(input: {
 	const forkSessionForIndex = input.forkSessionForIndex ?? (() => undefined);
 	const tasks = resolveTasks(params).map((task, index): PlannedTask => {
 		const context = task.context ?? topContext;
-		const systemPrompt = task.systemPrompt ?? params.systemPrompt;
+		const appendSystemPrompt = task.appendSystemPrompt ?? params.appendSystemPrompt;
 		const model = task.model ?? params.model;
 		const thinking = task.thinking ?? params.thinking ?? DEFAULT_THINKING;
 		const tools = task.tools ?? params.tools;
 		return {
 			id: `${runId}-${index}`,
-			name: task.name ?? safeName(systemPrompt?.split("\n", 1)[0], `task-${index + 1}`),
+			name: task.name ?? safeName(appendSystemPrompt?.split("\n", 1)[0], `task-${index + 1}`),
 			task: task.task,
-			...(systemPrompt ? { systemPrompt } : {}),
-			systemPromptMode: task.systemPromptMode ?? params.systemPromptMode ?? "append",
+			...(appendSystemPrompt ? { appendSystemPrompt } : {}),
 			context,
 			...(model ? { model } : {}),
 			...(thinking ? { thinking } : {}),

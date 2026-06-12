@@ -22,7 +22,7 @@ test("randomId returns a 64-bit hex run id", () => {
 test("resolveTasks rejects missing or mixed execution modes", () => {
   assert.throws(() => resolveTasks({}), /exactly one/);
   assert.throws(() => resolveTasks({ task: "one", tasks: [{ task: "two" }] }), /exactly one/);
-  assert.deepEqual(resolveTasks({ task: "one", name: "solo" }), [{ name: "solo", task: "one", context: undefined, cwd: undefined, model: undefined, thinking: undefined, systemPrompt: undefined, systemPromptMode: undefined, tools: undefined }]);
+  assert.deepEqual(resolveTasks({ task: "one", name: "solo" }), [{ name: "solo", task: "one", context: undefined, cwd: undefined, model: undefined, thinking: undefined, appendSystemPrompt: undefined, tools: undefined }]);
 });
 
 test("buildRunConfig applies defaults and task overrides", () => {
@@ -30,7 +30,7 @@ test("buildRunConfig applies defaults and task overrides", () => {
     params: {
       context: "fresh",
       cwd: "repo",
-      systemPrompt: "Default reviewer",
+      appendSystemPrompt: "Default reviewer",
       model: "model-a",
       thinking: "high",
       tools: "read,bash",
@@ -39,7 +39,7 @@ test("buildRunConfig applies defaults and task overrides", () => {
       includeJsonl: true,
       tasks: [
         { task: "a" },
-        { name: "custom", task: "b", systemPrompt: "Special", model: "model-b", thinking: "low", tools: false, cwd: "pkg" },
+        { name: "custom", task: "b", appendSystemPrompt: "Special", model: "model-b", thinking: "low", tools: false, cwd: "pkg" },
       ],
     },
     ctxCwd: "/work",
@@ -53,12 +53,12 @@ test("buildRunConfig applies defaults and task overrides", () => {
   assert.equal(config.timeoutMs, 1234);
   assert.equal(config.includeJsonl, true);
   assert.equal(config.tasks[0].name, "Default-reviewer");
-  assert.equal(config.tasks[0].systemPrompt, "Default reviewer");
+  assert.equal(config.tasks[0].appendSystemPrompt, "Default reviewer");
   assert.equal(config.tasks[0].model, "model-a");
   assert.equal(config.tasks[0].thinking, "high");
   assert.equal(config.tasks[0].tools, "read,bash");
   assert.equal(config.tasks[1].name, "custom");
-  assert.equal(config.tasks[1].systemPrompt, "Special");
+  assert.equal(config.tasks[1].appendSystemPrompt, "Special");
   assert.equal(config.tasks[1].model, "model-b");
   assert.equal(config.tasks[1].thinking, "low");
   assert.equal(config.tasks[1].tools, false);

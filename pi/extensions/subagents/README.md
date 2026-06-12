@@ -12,7 +12,11 @@ A subagent is not a special object type. It is a child Pi session launched with:
 
 This extension provides orchestration infrastructure only. It does not own your agent taxonomy. The parent session decides what child roles are needed for the current problem and passes those roles as prompts.
 
-The default workflow is read-only fanout: launch focused children to inspect, critique, research, or validate, then let the parent synthesize the results and decide what to do. Children are helpers, not decision owners.
+The default workflow is orchestration fanout: launch focused children to inspect, critique, research, validate, or implement as explicitly instructed, then let the parent synthesize the results and decide what to do. Children are helpers, not decision owners.
+
+The extension adds no default child role or safety policy. If a child should be read-only, the parent must say so in `appendSystemPrompt` and/or restrict `tools`.
+
+When `appendSystemPrompt` is provided, it is always appended to Pi's core system prompt. The extension never replaces Pi's core system prompt.
 
 Runs default to foreground/blocking so the parent sees all child results before answering. Use `async: true` when the parent should keep working while children run in the background.
 
@@ -29,7 +33,7 @@ Single child:
 ```ts
 subagent({
   task: "Review the current diff for correctness. Return findings only.",
-  systemPrompt: "You are a correctness reviewer.",
+  appendSystemPrompt: "You are a correctness reviewer.",
   context: "fresh"
 })
 ```
@@ -42,17 +46,17 @@ subagent({
     {
       name: "correctness",
       task: "Review the current diff for correctness and regressions. Return findings only.",
-      systemPrompt: "You are a correctness reviewer."
+      appendSystemPrompt: "You are a correctness reviewer."
     },
     {
       name: "simplicity",
       task: "Review the current diff for unnecessary complexity. Return findings only.",
-      systemPrompt: "You are a simplicity reviewer."
+      appendSystemPrompt: "You are a simplicity reviewer."
     },
     {
       name: "architecture",
       task: "Review the current diff for architectural boundary issues. Return findings only.",
-      systemPrompt: "You are an architecture reviewer."
+      appendSystemPrompt: "You are an architecture reviewer."
     }
   ],
   context: "fresh",
@@ -76,8 +80,7 @@ Top-level:
 | `task` | Single child task. Mutually exclusive with `tasks`. |
 | `tasks` | Parallel child tasks. |
 | `name` | Label for single child. |
-| `systemPrompt` | Default role/config prompt. Used by single child and fanout tasks that omit their own. |
-| `systemPromptMode` | `append` default, or `replace`. |
+| `appendSystemPrompt` | Optional default role/config prompt appended to Pi's core system prompt. Used by single child and fanout tasks that omit their own. If omitted, no prompt override is passed. |
 | `context` | `fresh` default, or `fork`. |
 | `model` | Child model override. Thinking suffixes like `sonnet:high` also work. |
 | `thinking` | Child thinking level: `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. Default `medium`. Passed as `--thinking`. |
@@ -95,8 +98,7 @@ Per-task overrides inside `tasks[]`:
 |---|---|
 | `name` | Child label. |
 | `task` | Required child task. |
-| `systemPrompt` | Task-specific role/config prompt. |
-| `systemPromptMode` | `append` or `replace`. |
+| `appendSystemPrompt` | Optional task-specific role/config prompt appended to Pi's core system prompt. If omitted, inherits the top-level prompt if present. |
 | `context` | Override top-level `context`. |
 | `model` | Override top-level `model`. |
 | `thinking` | Override top-level `thinking`. |
@@ -157,7 +159,7 @@ notify: "none"
 
 Starts a new child Pi process with no parent conversation history.
 
-Use for adversarial/read-only review. This is the default.
+Use for isolated or adversarial work. This is the default.
 
 ### `fork`
 
@@ -165,16 +167,15 @@ Creates a branched Pi session from the parent session leaf and starts the child 
 
 Use when inherited conversation matters. Fork fails if the parent session is not persisted or has no current leaf. It does not silently downgrade to fresh.
 
-## Read-only boundary
+## Safety and tool boundaries
 
-Children are instructed:
+The extension does not inject a read-only prompt. The parent/orchestrator owns child instructions and tool access.
 
-> Do not edit, write, delete, format, stage, or commit project files. You may run inspection commands.
-
-This is not a sandbox. If you allow `bash`, a child can still mutate files. Pass a restrictive `tools` allowlist if you want hard limits:
+Prompt-only safety is not a sandbox. If you allow `bash`, a child can mutate files no matter what the prompt says. Pass a restrictive `tools` allowlist if you want harder limits:
 
 ```ts
 subagent({
+  appendSystemPrompt: "You are a read-only reviewer. Do not modify files.",
   task: "Review src/",
   tools: "read,grep,find,ls"
 })
@@ -202,6 +203,7 @@ Important files:
 | `status.json` | Current run/task state. |
 | `events.jsonl` | Compact runner task start/end/error events. Does not duplicate child JSON. |
 | `result.md` | Aggregate result after completion. |
+| `prompt-*.md` | Optional per-child system prompt append, only written when `appendSystemPrompt` is provided. |
 | `input-*.md` | Per-child task input passed to Pi. |
 | `output-*.md` | Per-child final output. |
 | `task-*.jsonl` | Per-child raw Pi JSON stdout, only when `includeJsonl: true`; capped at 50 MB per child. |

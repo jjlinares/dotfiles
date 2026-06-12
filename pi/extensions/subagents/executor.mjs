@@ -121,22 +121,18 @@ function persist(status, statusPath, onUpdate) {
   onUpdate?.(status);
 }
 
-function writePromptFiles(config, task, index) {
-  const promptParts = [
-    "You are a delegated subagent. Return findings to the parent Pi session.",
-    "Default boundary: read-only. Do not edit, write, delete, format, stage, or commit project files. You may run inspection commands. If a command could mutate files or external state, do not run it. Return recommendations only.",
-  ];
-  if (task.systemPrompt) promptParts.push(task.systemPrompt);
-  const promptPath = path.join(config.runDir, `prompt-${index}-${safeName(task.name)}.md`);
-  fs.writeFileSync(promptPath, promptParts.join("\n\n"), { mode: 0o600 });
+function writeTaskFiles(config, task, index) {
+  const name = safeName(task.name);
+  const promptPath = task.appendSystemPrompt ? path.join(config.runDir, `prompt-${index}-${name}.md`) : undefined;
+  if (promptPath) fs.writeFileSync(promptPath, task.appendSystemPrompt, { encoding: "utf8", mode: 0o600 });
 
-  const taskPath = path.join(config.runDir, `input-${index}-${safeName(task.name)}.md`);
+  const taskPath = path.join(config.runDir, `input-${index}-${name}.md`);
   fs.writeFileSync(taskPath, `Task:\n${task.task}\n`, { mode: 0o600 });
   return { promptPath, taskPath };
 }
 
 function argsForTask(config, task, index) {
-  const { promptPath, taskPath } = writePromptFiles(config, task, index);
+  const { promptPath, taskPath } = writeTaskFiles(config, task, index);
   const args = ["--mode", "json", "-p", "--no-extensions"];
   if (task.sessionFile) args.push("--session", task.sessionFile);
   else args.push("--no-session");
@@ -147,7 +143,7 @@ function argsForTask(config, task, index) {
   if (tools === false) args.push("--no-tools");
   else if (tools) args.push("--tools", tools);
 
-  args.push(task.systemPromptMode === "replace" ? "--system-prompt" : "--append-system-prompt", promptPath);
+  if (promptPath) args.push("--append-system-prompt", promptPath);
   args.push(`@${taskPath}`);
   return args;
 }
