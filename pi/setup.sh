@@ -64,7 +64,33 @@ setup_shared_skills() {
     done
 }
 
+install_pi_extension_packages() {
+    [ -d "$DOTFILES_DIR/pi/extensions" ] || return
+
+    find "$DOTFILES_DIR/pi/extensions" -mindepth 1 -maxdepth 1 -type d | while read -r src; do
+        [ -f "$src/package.json" ] || continue
+
+        local rel legacy_link
+        rel="$(basename "$src")"
+        legacy_link="$HOME/.pi/agent/extensions/$rel"
+
+        if [ -L "$legacy_link" ]; then
+            rm "$legacy_link"
+            log "Removed legacy extension symlink $legacy_link"
+        fi
+
+        if pi list 2>/dev/null | grep -Fqx "    $src"; then
+            log "Pi extension package already installed: $src"
+            continue
+        fi
+
+        log "Installing Pi extension package $src"
+        pi install "$src"
+    done
+}
+
 log "Setting up Pi..."
 install_pi_cli
 setup_pi_agents_md
 setup_shared_skills
+install_pi_extension_packages

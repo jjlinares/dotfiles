@@ -1,0 +1,25 @@
+{
+  "name": "pi-subagents",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Child Pi session launcher for read-only fanout workflows",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "subagents"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test core.test.mjs runner.test.mjs"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  }
+}
