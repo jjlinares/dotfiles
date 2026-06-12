@@ -1,15 +1,15 @@
 # test-coverage
 
-Run when behavior changed, tests changed, or the user asks about test quality.
+Review whether important changed behavior is protected by useful tests.
 
-Focus on behavioral coverage, not line coverage.
+Check:
 
-Report only gaps that protect important changed behavior:
-- critical business logic branches
-- negative/error cases
-- boundary inputs
-- async/concurrency behavior
-- integration contract changes
-- regression-prone conditions introduced by the diff
+- new behavior without regression tests
+- bug fixes without a test that fails before the fix
+- public contract changes without caller/API/CLI/config tests
+- error paths, edge cases, and fallback behavior changed without coverage
+- tests that assert implementation details but miss behavior
+- deleted or weakened tests
+- flaky async/time/order assumptions
 
-For each gap, state the regression it would catch and rate priority. Do not demand tests for trivial getters, simple wiring, or behavior already covered at the right level.
+Report only test gaps that protect meaningful behavior. Do not ask for tests around trivial getters, pure wiring, generated code, or behavior already covered nearby. Cite the changed behavior and the nearest existing test pattern to follow.

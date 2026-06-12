@@ -1,159 +1,162 @@
 ---
 name: review
-description: This skill should be used when the user asks to "review this PR", "review my branch", "review last commit", "review local changes", "review since X", "run review agents", "do a code review", "review and fix", or wants a parent agent to orchestrate specialized review subagents and decide which findings to accept.
+description: This skill should be used when the user asks to "review local changes", "review this PR", "review my branch", "review a commit", "review the codebase", "run review subagents", "turn review findings into plans", or wants an orchestrated multi-perspective review across correctness, security, tests, architecture, conventions, and specs.
 version: 0.1.0
 ---
 
 # Review
 
-Run a parent-orchestrated code review for a PR, branch, commit, or local changes. Treat subagents as advisory reviewers. The parent agent owns target selection, reviewer selection, finding validation, user reporting, and any follow-up edits.
+Run an orchestrated review of a target. Treat subagents as lead generators, not judges. The orchestrator resolves the target, launches narrow read-only reviewers, validates every candidate finding, rejects noise, then writes implementation plans for accepted issues.
 
-Use pi only. Launch review subagents with `pi` in `tmux` when parallelism helps. Do not support Codex, Claude Code, or other harness-specific flows.
+The orchestrator's job is judgment: scope the review, choose reviewers, validate evidence, reject noise, and write plans. It does not implement fixes or delegate final judgment.
+
+The first output adapter is **plans**. Future adapters may publish PR comments, review comments, GitHub issues, or PRs, but keep that outside the core review contract.
+
+## Vocabulary
+
+- **Review** — inspect a specific target and accept only issues introduced or exposed by it.
+- **Audit** — inspect a codebase area without a diff; pre-existing high-leverage issues may be accepted.
+- **Plan** — self-contained implementation handoff for an accepted finding.
 
 ## Core Contract
 
-- Default to review-only. Edit only when the user explicitly asks to fix accepted findings.
-- Resolve the review target before launching subagents. Do not let subagents infer scope.
-- Keep subagents best-effort read-only: no `edit`, `write`, formatters, package installs, generators, commits, pushes, or mutation commands. `bash` is not sandboxed, so enforce this through allowed tools plus explicit prompts.
-- Treat every subagent report as untrusted. Validate each finding against the real code path before surfacing it as accepted.
-- Reject speculative, pre-existing, lint-only, stylistic, or overcomplicated suggestions.
-- Prefer fewer high-conviction findings over noisy completeness.
-- If fixes are made, run focused tests/checks and rerun only relevant reviewers.
+- Default to review-only. Never edit source code, even when the user says "review and fix".
+- When asked to fix, complete the review, write plans for accepted findings, and recommend handing those plans to an implementation skill or executor.
+- Allow writes only under `.agents/reviews/<run-id>/` for manifests, reports, adjudication notes, and plans.
+- Resolve the target before launching reviewers. Never let subagents infer scope.
+- Keep subagents read-only. Do not give them edit/write tools. For `bash`, allow inspection commands only: `git diff`, `git show`, `git log`, `grep`, `find`, `ls`, `pwd`.
+- Treat every subagent finding as untrusted. Subagents do not vote; agreement between subagents is not evidence. Accept a finding only after independently verifying the code path, target provenance, trigger, and impact.
+- For diff targets, accept only issues introduced or exposed by the target.
+- For `codebase` target, accept pre-existing issues only when evidence, impact, and leverage are clear.
+- Prefer fewer high-confidence findings over completeness theater.
+- Write a plan for every accepted finding. If a candidate is not plan-worthy, reject it or mark it `needs-user-decision` instead of accepting it.
+- Never reproduce secret values. Cite location and credential type only; recommend rotation.
 
-## Process
+## Workflow
 
 ### 1. Resolve target
 
-Identify exactly what is being reviewed. If ambiguous, ask one short question.
+Identify the exact target: `local`, `commit <ref>`, `branch [base]`, `pr [number|url]`, `since <ref>`, or `codebase`.
 
-Use `references/target-selection.md` for commands.
+Use `references/target-selection.md`. Ask one short question when ambiguous.
 
-Common targets:
+For commit, branch, and PR reviews, prefer a pinned clean checkout/worktree. For local reviews, use the live working tree because staged, unstaged, and untracked files matter.
 
-- `local`: staged, unstaged, and untracked changes relative to `HEAD`.
-- `commit`: one commit, usually `HEAD` for "last commit".
-- `branch`: merge-base diff, usually the PR base or `origin/<default-branch>...HEAD`.
-- `pr`: current branch's open GitHub PR, using its actual base.
-- `since X`: `git diff X...HEAD` unless user explicitly requests two-dot.
+### 2. Create run directory
 
-### 2. Create a review run directory
+Create:
 
-Create `.agents/reviews/<timestamp>/` and store only:
+```text
+.agents/reviews/<timestamp>/
+  target.md
+  context.md
+  reports/
+  findings.md
+  plans/
+  report.md
+```
 
-- `target.md` — target, exact base/head SHAs, review checkout/worktree path, diff/log commands, commit list, PR metadata, changed files, and PR/spec body if available.
-- `context.md` — discovered standards/spec/test commands and selected reviewer plan.
-- `reports/<role>.md` — subagent outputs.
-- `report.md` — parent accepted/rejected findings and fix status.
+Record exact SHAs, diff/log commands, checkout path, changed files, PR/spec metadata, cleanup commands for temporary worktrees, and the selected reviewer plan.
 
-For commit, branch, and PR reviews, subagents inspect a clean checkout pinned to the target head and run exact read-only git diff commands from `target.md`. If the current checkout is not the exact clean target, create a detached git worktree under `/tmp/pi-review-worktrees/` and record it in `target.md` with cleanup commands so the user can decide when to run them.
+### 3. Recon and context
 
-### 3. Discover context
-
-Gather only context needed for the target:
+Read only context needed to judge the target:
 
 - Project instructions: `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `STYLE.md`, `STANDARDS.md`.
-- Architecture/product docs: `context.md`, `docs/adr/`, `.agents/features/**/prd.md`, specs matching branch/issue names.
-- Tooling signals: package scripts, Makefile, lint/type/test configs. Do not re-check what tooling obviously owns.
-- PR/issue body when available.
+- Domain docs: `docs/context.md`, `docs/context-map.md`, local context docs.
+- Decisions: `docs/adr/**` and context-specific ADRs.
+- Specs: PR body, issue body, PRD, feature docs, branch-matching specs.
+- Tooling: package scripts, Makefile, test/lint/type configs.
+- Touched files, nearby callers, nearby tests.
 
-If no spec exists, skip the spec reviewer and state that spec compliance was not reviewed.
+Write the useful facts into `context.md`: commands, conventions, spec sources, domain terms, risks, what was intentionally skipped.
 
 ### 4. Select reviewers
 
-Load `references/reviewer-roles.md` to select reviewers, then load only the selected `references/reviewers/<role>.md` files.
+Use `references/reviewer-selection.md`.
 
-Always run:
+Always run `correctness-regression` unless the target is documentation-only. Add conditional reviewers for security, tests, standards, spec, silent failure, type contracts, architecture, performance, and docs/DX.
 
-- `correctness-regression`
+Run focused reviewers only. A reviewer with no relevant trigger creates noise.
 
-Conditionally run:
+### 5. Launch subagents
 
-- `spec-compliance` when a spec, PRD, issue, or PR body exists.
-- `standards-compliance` when project standards are found.
-- `test-coverage` when behavior changed or tests were added/modified.
-- `silent-failure` when error handling, fallback logic, retries, logging, null/default handling, or catch blocks changed.
-- `security-boundary` when auth, permissions, secrets, shell, filesystem, network, deserialization, user input, or path handling changed.
-- `type-design` when public types, schemas, contracts, domain models, or validation boundaries changed.
-- `simplicity-architecture` when the diff is large, structurally complex, crosses ownership seams, grows large files, or the user asks for strict/deep review.
+Use `references/subagent-protocol.md` and `references/orchestration.md`.
 
-Default batching:
+Give each subagent exactly one role, the target manifest, the context manifest, the role brief, and the output format. Require candidate findings only. Require line references and confidence. Require `No findings.` when clean.
 
-1. Batch 1: correctness, security if relevant, spec if available.
-2. Batch 2: standards, tests, silent-failure, type-design as relevant.
-3. Batch 3: simplicity-architecture only for strict/deep/large-risk review, or after correctness is clean.
+If parallel subagents are unavailable, run the same reviewer briefs sequentially in the parent and record that no external subagents were launched.
 
-Run independent reviewers in parallel. Run later batches only when their output can change decisions.
+### 6. Adjudicate
 
-### 5. Launch pi subagents
+Use `references/finding-bar.md`.
 
-Use `references/pi-tmux.md` for exact launch patterns. Run each subagent from the review checkout/worktree. Provide:
+For every candidate:
 
-- `target.md` path
-- `context.md` path
-- selected `references/reviewers/<role>.md` brief
-- output format
-- best-effort read-only constraint
+1. Open cited code and adjacent context.
+2. Confirm target provenance using `target.md` commands.
+3. Trace a concrete caller/input/state/requirement.
+4. Check relevant spec, standards, ADRs, or domain docs.
+5. Accept, reject, or mark `needs-user-decision`.
+6. Deduplicate overlapping findings.
+7. Rank accepted findings by severity, confidence, impact, effort, and leverage.
 
-Pass the prompt inline or through stdin. Enable only read-only tools plus `bash` for inspection commands such as `git diff`, `git log`, `git show`, `grep`, and `find`; never enable write/edit tools. Treat this as best-effort because `bash` can mutate if misused.
+Record accepted and rejected findings in `findings.md`. Rejection reasons matter; they prevent repeated false positives.
 
-### 6. Adjudicate findings
+### 7. Write implementation plans
 
-Load `references/finding-bar.md`. For each reported issue:
+Write one plan per accepted finding under `.agents/reviews/<run-id>/plans/` using `references/plan-template.md`.
 
-1. Read the cited diff hunk with the exact commands in `target.md`, then inspect adjacent code in the review checkout.
-2. Confirm the issue was introduced or exposed by the target change.
-3. Identify the concrete caller/input/state that triggers it.
-4. Decide: `accepted`, `rejected`, or `needs-user-decision`.
-5. Record a one-line reason, especially for rejections.
+Treat acceptance as a commitment to plan. Plans must be self-contained for a fresh executor: evidence, current behavior, target files, exact steps, tests, verification commands, non-goals, and stop conditions.
 
-Do not surface raw subagent output as final truth. The final review is the parent decision.
+Do not let subagents write final plans. Subagents provide leads; the orchestrator writes plans from validated evidence.
 
-### 7. Report to user
+### 8. Report
 
-Use this shape:
+Final response shape:
 
 ```markdown
 ## Review target
-- <target and base/ref>
-
-## Accepted findings
-- [P1] Title — path:line
-  Why it matters. Suggested fix.
-
-## Rejected findings
-- Title — rejected because <reason>.
-
-## Needs user decision
-- Question/tradeoff if any.
+- <target, base/head, checkout>
 
 ## Reviewers run
-- correctness-regression: N reported, M accepted
-- ...
+- <role>: <reported>/<accepted>
+
+## Accepted findings
+- [P1] <title> — <path:line> → <plan path>
+
+## Plans written
+- <plan path>: <one-line goal>
+
+## Rejected findings
+- <title> — <reason>
+
+## Needs decision
+- <question or None>
+
+## Residual risk
+- <tests not run, skipped areas, missing spec>
 
 ## Next action
-- Recommended action, or "No changes needed."
+- <recommended next step>
 ```
 
-If no accepted findings exist, say `No actionable findings accepted.` Include residual risk briefly.
+If no findings qualify, say `No actionable findings accepted.` Include residual risk.
 
-### 8. Fix loop, only when requested
+## Modes
 
-When the user asks to fix:
+- `low`, `medium`, `high`, `extra-high` — subagent thinking level only. Default to the orchestrator agent's current thinking level.
+- `strict` / `architecture` — include architecture-simplicity with a higher maintainability bar.
+- `security`, `tests`, `performance`, `docs` — focused review plus correctness only when useful.
+- `codebase` — improvement audit mode; pre-existing findings allowed when high-leverage.
+- `plan-only` — skip final report detail and write plans for accepted findings.
 
-1. Never apply fixes in the review worktree. Treat review worktrees as read-only/disposable.
-2. Apply accepted fixes in the user's working checkout.
-3. Before editing, verify the user's checkout is the reviewed branch/head or ask for confirmation if it drifted.
-4. Fix accepted findings only.
-5. Keep edits surgical and at the right ownership boundary.
-6. Run focused tests/checks in the user's checkout.
-7. Rerun only reviewers relevant to changed areas against the new HEAD/local diff. Create a new review run or update `target.md` to the new target.
-8. Repeat until no accepted actionable findings remain or a user decision is needed.
-9. Final report: edits made, tests/checks run, rerun result, remaining rejected/waived findings.
+## Resources
 
-## Additional Resources
-
-- `references/target-selection.md` — target commands for local, commit, branch, PR, and since-X review.
-- `references/reviewer-roles.md` — shared prompt skeleton and reviewer index.
-- `references/reviewers/*.md` — one reviewer brief per file.
-- `references/finding-bar.md` — acceptance bar, severities, rejection reasons.
-- `references/pi-tmux.md` — pi + tmux orchestration pattern.
+- `references/target-selection.md` — target resolution and run manifest rules.
+- `references/reviewer-selection.md` — reviewer matrix and role triggers.
+- `references/subagent-protocol.md` — prompt shape and report format.
+- `references/orchestration.md` — pi/tmux launch patterns and fallback.
+- `references/finding-bar.md` — acceptance, rejection, severity, adjudication.
+- `references/plan-template.md` — implementation plan format.
+- `references/reviewers/*.md` — role briefs loaded only when selected.

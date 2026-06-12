@@ -1,69 +1,76 @@
 # Finding Bar
 
-Use this bar when deciding whether to accept, reject, or defer subagent findings.
+Use this bar to adjudicate subagent candidates. The orchestrator owns the final decision.
 
-## Accept a finding only when all are true
+## Accept for diff targets only when all are true
 
-- Introduced or exposed by the reviewed change.
-- Meaningfully affects correctness, security, reliability, performance, maintainability, test confidence, or documented requirements.
+- Introduced or exposed by the reviewed target.
+- Meaningfully affects correctness, security, reliability, performance, maintainability, test confidence, docs accuracy, DX, or documented requirements.
 - Discrete and actionable.
-- Has an identifiable code path, caller, input, environment, or requirement.
-- Does not depend on guessing the author's intent.
+- Has a concrete code path, caller, input, state, environment, or requirement.
+- Does not depend on guessing intent.
 - Would likely be fixed by a senior author if informed.
-- Can be fixed without a larger speculative rewrite, unless the user requested strict architecture review.
+- Has a minimal safe fix direction.
 
-Prefer rejecting a low-confidence finding over padding the review.
+## Accept for codebase target only when all are true
+
+- Concrete evidence exists in code/docs/config.
+- Impact is real, not generic best-practice sludge.
+- Fix has clear leverage relative to effort.
+- The plan can be scoped without rewriting the project.
+- The finding is not already documented as intentionally accepted debt unless circumstances changed.
 
 ## Reject by default
 
 Reject findings that are:
 
-- Pre-existing and not worsened by the change.
-- Pure style preferences.
-- Linter/formatter/typechecker output that tooling should catch.
-- Broad rewrites without a concrete failure mode.
-- Speculative edge cases with no plausible changed path.
-- Missing tests for trivial behavior or already-covered behavior.
-- Security concerns with no concrete trust-boundary risk.
-- Architecture opinions that make the code more complex than the problem.
-- Intentional behavior changes reflected in the spec/PR body.
+- pre-existing and not worsened by a diff target
+- not introduced by the target
+- speculative, no plausible trigger
+- intentional behavior per spec/PR body
+- pure style preference
+- tooling-owned lint/format/type output
+- broad rewrite with no concrete failure mode
+- architecture taste with no locality/leverage cost
+- missing test for trivial behavior or already-covered behavior
+- security concern with no trust-boundary consequence
+- docs nit with no user confusion or executable mismatch
+- not worth the complexity of fixing
+
+Prefer rejecting a low-confidence real-ish issue over polluting the output.
 
 ## Severity
 
-Use the lowest severity that honestly fits.
+Use the lowest honest severity:
 
-- `P0`: blocks release or breaks major usage universally.
-- `P1`: urgent; likely affects important users, data, security, compatibility, or core flows.
-- `P2`: normal actionable defect with bounded impact or less common trigger.
-- `P3`: low severity but real and worth fixing.
+- `P0` — blocks release or breaks major usage universally.
+- `P1` — should fix before merge; likely affects security, data, core flows, compatibility, or important users.
+- `P2` — normal actionable defect or maintainability issue with bounded impact.
+- `P3` — real but optional cleanup/follow-up.
 
-For non-bug lenses, map severity to action:
+For plans:
 
-- `P1`: should fix before merge.
-- `P2`: should fix unless consciously waived.
-- `P3`: optional cleanup or follow-up.
+- Every accepted finding gets a plan.
+- Do not accept findings that are too trivial, speculative, broad, or low-leverage to plan.
+- Use `needs-user-decision` when a real issue requires product/design input before a plan can be written.
 
-## Accepted finding shape
+## Adjudication checklist
 
-A good accepted finding includes:
+For each candidate:
 
-- Priority and short title.
-- Smallest useful file:line location.
-- Changed behavior that causes the issue.
-- Concrete scenario that triggers it.
-- Consequence if unfixed.
-- Minimal fix direction.
-
-Example:
-
-```markdown
-- [P1] Missing permission check for imported projects — src/projects/import.ts:87
-  The new import path calls `createProject` before verifying workspace membership, so a user with a valid import token can create projects in a workspace they do not belong to. Move the membership check before project creation and keep the existing error response.
-```
+1. Read cited location and nearby code.
+2. Re-run or inspect the relevant diff command from `target.md`.
+3. Confirm whether the target introduced/exposed the issue.
+4. Trace one caller, input, state, or requirement when needed.
+5. Check relevant docs/spec/ADR only for the rule involved.
+6. Decide `accepted`, `rejected`, or `needs-user-decision`.
+7. Deduplicate overlaps across reviewers.
+8. Write the smallest safe fix direction.
+9. If accepted, write a plan. If not plan-worthy, reject or mark `needs-user-decision` instead of accepting.
 
 ## Rejection reasons
 
-Record one concise reason when rejecting:
+Use one concise reason:
 
 - `pre-existing`
 - `not introduced by target`
@@ -75,25 +82,20 @@ Record one concise reason when rejecting:
 - `already covered by tests`
 - `not worth complexity`
 - `needs product decision`
+- `duplicate`
+- `insufficient evidence`
 
-## Parent adjudication checklist
+## Accepted finding shape
 
-For each subagent finding:
+```markdown
+- [P1] Missing permission check for project import — src/projects/import.ts:87
+  The target adds an import path that creates a project before verifying workspace membership. A user with a valid import token but no workspace membership can create data in that workspace. Move the membership check before creation and keep the existing error response. Plan: .agents/reviews/<run-id>/plans/001-import-permission-check.md
+```
 
-1. Read cited location and nearby code.
-2. Check the exact diff command in `target.md` to confirm provenance.
-3. Trace at least one caller or execution path when needed.
-4. Check project docs/spec only for rules relevant to the changed file.
-5. Decide accepted/rejected/needs-user-decision.
-6. If accepted, describe the smallest safe fix.
-7. If fixing, avoid broad refactors unless the finding itself is structural and accepted.
-
-## No-finding result
-
-When no findings are accepted, report:
+## No accepted findings
 
 ```markdown
 No actionable findings accepted.
 
-Residual risk: <tests not run, generated files not deeply inspected, missing spec, or other real limitation>.
+Residual risk: <tests not run, generated files not inspected, missing spec, skipped reviewer, etc.>
 ```

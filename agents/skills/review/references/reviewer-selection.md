@@ -1,0 +1,76 @@
+# Reviewer Selection
+
+Select reviewers by changed surface area and user-requested depth. The orchestrator chooses the reviewer set unless the user explicitly names reviewers or focus areas. Do not run every reviewer by default. Narrow reviewers produce better signal.
+
+## User-directed selection
+
+When the user explicitly requests reviewers or focus areas, honor that request and do not silently add unrelated reviewers. Keep `correctness-regression` only when code changed and it materially protects the requested review. If the requested reviewer is irrelevant to the target, say so and ask whether to run it anyway.
+
+Examples:
+
+- `review security` → run `security-boundary` plus correctness only if code changed.
+- `review tests and architecture` → run `test-coverage` and `architecture-simplicity`; add correctness only if needed to evaluate changed behavior.
+- `review only docs-dx` → run `docs-dx` only.
+
+## Default set
+
+When the user does not name reviewers, always run:
+
+- `correctness-regression` for code changes.
+
+Skip all code reviewers for docs-only changes unless docs contain executable examples, setup commands, config, or API contracts.
+
+## Conditional reviewers
+
+| Reviewer | Run when |
+|---|---|
+| `spec-compliance` | PR body, issue, PRD, task, roadmap item, or explicit user intent exists. |
+| `standards-conventions` | `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, ADRs, style docs, or strong local conventions exist. |
+| `security-boundary` | Auth, authorization, permissions, secrets, shell, filesystem, network, deserialization, uploads, user input, cookies, tokens, privacy data, or path handling changed. |
+| `test-coverage` | Behavior changed, tests changed, bug fix lacks regression test, or public contract changed. |
+| `silent-failure` | Error handling, fallback, retries, null/default handling, logging, catch blocks, cleanup, cancellation, or background jobs changed. |
+| `type-contracts` | Public types, schemas, validation, serialization, APIs, CLI/config contracts, DB migrations, or domain invariants changed. |
+| `architecture-simplicity` | Large/risky diff, strict/deep mode, file growth, cross-module seams, abstraction churn, duplicated helpers, or user asks for architecture review. |
+| `performance` | Loops, queries, caching, concurrency, payload sizes, rendering, IO, startup, or hot paths changed. |
+| `docs-dx` | README, docs, examples, setup, scripts, CLIs, dev tooling, or onboarding changed. |
+| `codebase-direction` | `codebase`, `next`, roadmap, or improvement-audit mode. |
+
+## Thinking level
+
+Thinking level controls subagent reasoning budget only. It does not choose reviewers, widen scope, or lower the finding bar.
+
+Accepted values:
+
+- `low`
+- `medium`
+- `high`
+- `extra-high`
+
+Default to the orchestrator agent's current thinking level when the user does not specify one.
+
+Use higher thinking for harder analysis inside selected reviewers: caller tracing, security boundaries, architectural tradeoffs, and ambiguous spec compliance. Do not add unrelated reviewers just because the user asked for higher thinking.
+
+`strict` is not a thinking level. Treat it as a review focus that selects `architecture-simplicity` and raises the maintainability bar.
+
+## Batch rules
+
+- Run independent reviewers in parallel when available.
+- Run later reviewers only when their output can change the final decision.
+- Do not launch architecture after a diff is already blocked by a clear P1 unless the user requested strict review.
+- Do not re-check linter/formatter/typechecker facts unless tooling is absent or the changed code bypasses tooling.
+
+## Role brief paths
+
+Load only selected files:
+
+- `reviewers/correctness-regression.md`
+- `reviewers/spec-compliance.md`
+- `reviewers/standards-conventions.md`
+- `reviewers/security-boundary.md`
+- `reviewers/test-coverage.md`
+- `reviewers/silent-failure.md`
+- `reviewers/type-contracts.md`
+- `reviewers/architecture-simplicity.md`
+- `reviewers/performance.md`
+- `reviewers/docs-dx.md`
+- `reviewers/codebase-direction.md`

@@ -1,13 +1,15 @@
 # correctness-regression
 
-Default reviewer. Focus on bugs introduced or exposed by the diff.
+Default reviewer for code changes. Focus on bugs introduced or exposed by the target.
 
 Check:
+
 - changed control flow, early returns, fallback branches
-- error paths, cleanup, cancellation, async ordering
-- data shape changes, migrations, serialization, backwards compatibility
+- async ordering, cancellation, cleanup, retries
+- null/empty/default handling
+- data shape changes, serialization, migrations, backwards compatibility
 - public contracts: APIs, CLI flags, config, protocols, persistence
 - integration breakage with existing callers
-- performance regressions from changed loops, queries, payloads, or caching
+- performance regressions that cause incorrect behavior or obvious user impact
 
-Do not report broad maintainability opinions, style nits, or issues outside the target unless needed to prove a changed path breaks.
+Report only concrete regressions with a trigger. Do not report style, broad maintainability, or pre-existing issues unless the target makes them newly reachable.

@@ -1,12 +1,14 @@
 # spec-compliance
 
-Run when a PRD, issue, PR body, ticket, or explicit user spec exists.
+Run when a PR body, issue, PRD, task, or user-provided requirement exists.
 
-Report:
+Check:
+
 - required behavior missing or partial
-- behavior implemented differently from the spec
-- scope creep: behavior not requested and risky
-- acceptance criteria without corresponding implementation
-- missing tests only when the spec explicitly requires tests
+- changed behavior outside requested scope
+- acceptance criteria not implemented
+- edge cases named in the spec ignored
+- incompatible interpretation of domain terms
+- implementation that appears to satisfy the spec but fails under a concrete scenario
 
-Quote the spec line or requirement for each finding. If the spec is ambiguous, ask an open question instead of inventing intent.
+Cite the requirement source and the changed code. Do not invent requirements. If the spec is ambiguous, report an open question or `needs-user-decision`, not a defect.
