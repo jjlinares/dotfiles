@@ -64,11 +64,29 @@ setup_shared_skills() {
     done
 }
 
+install_node_package_deps() {
+    local src="$1"
+
+    if ! command -v npm &> /dev/null; then
+        warn "npm not found; cannot install dependencies for $src"
+        return 1
+    fi
+
+    log "Installing npm dependencies for $src"
+    if [ -f "$src/package-lock.json" ]; then
+        npm --prefix "$src" ci --omit=peer --legacy-peer-deps
+    else
+        npm --prefix "$src" install --omit=peer --legacy-peer-deps
+    fi
+}
+
 install_pi_extension_packages() {
     [ -d "$DOTFILES_DIR/pi/extensions" ] || return
 
     find "$DOTFILES_DIR/pi/extensions" -mindepth 1 -maxdepth 1 -type d | while read -r src; do
         [ -f "$src/package.json" ] || continue
+
+        install_node_package_deps "$src"
 
         local rel legacy_link
         rel="$(basename "$src")"

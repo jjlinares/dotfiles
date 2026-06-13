@@ -43,6 +43,7 @@ const ToolOverride = Type.Unsafe({
 const ThinkingSchema = Type.String({ enum: ["off", "minimal", "low", "medium", "high", "xhigh"], description: "Child thinking level passed to Pi --thinking. Default medium." });
 
 const SubagentSchema = Type.Object({
+	profile: Type.Optional(Type.String({ description: "Local YAML profile path for subagent defaults. Inline fields take priority." })),
 	name: Type.Optional(Type.String({ description: "Human-readable child label." })),
 	task: Type.String({ description: "User task for this child Pi session." }),
 	appendSystemPrompt: Type.Optional(Type.String({ description: "Optional role/config prompt appended to Pi's core system prompt for this child. No prompt override is passed when omitted." })),
@@ -101,7 +102,7 @@ function prepareRun(params: SubagentParams, ctx: ExtensionContext): PreparedRun 
 	const runId = randomId();
 	const runDir = path.join(RUN_ROOT, runId);
 	ensureDir(runDir);
-	const forkSessionForIndex = needsFork(params) ? createForkResolver(ctx, "fork") : undefined;
+	const forkSessionForIndex = needsFork(params, ctx.cwd) ? createForkResolver(ctx, "fork") : undefined;
 	const config = buildRunConfig({ params, ctxCwd: ctx.cwd, runId, runDir, forkSessionForIndex });
 	config.piScript = process.argv[1];
 	const configPath = path.join(runDir, "config.json");

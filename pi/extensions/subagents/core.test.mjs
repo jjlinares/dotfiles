@@ -8,6 +8,7 @@ import {
   ensureDir,
   findRunDir,
   formatStatus,
+  loadSubagentProfile,
   needsFork,
   notifyCompletion,
   randomId,
@@ -63,6 +64,62 @@ test("buildRunConfig applies defaults and subagent overrides", () => {
   assert.equal(config.subagents[1].thinking, "low");
   assert.equal(config.subagents[1].tools, false);
   assert.equal(config.subagents[1].cwd, "/work/repo/pkg");
+});
+
+test("buildRunConfig merges profile between top-level defaults and inline overrides", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-profile-test-"));
+  await fs.writeFile(path.join(dir, "reviewer.yaml"), `
+name: profile-reviewer
+description: Parent-facing hint.
+appendSystemPrompt: Profile prompt
+context: fresh
+model: profile-model
+thinking: high
+tools: read,bash
+cwd: profile-cwd
+`);
+
+  const config = buildRunConfig({
+    params: {
+      model: "default-model",
+      thinking: "low",
+      subagents: [{ profile: "reviewer.yaml", task: "review", thinking: "minimal", cwd: "inline-cwd" }],
+    },
+    ctxCwd: dir,
+    runId: "profile",
+    runDir: "/tmp/profile",
+  });
+
+  assert.equal(config.subagents[0].name, "profile-reviewer");
+  assert.equal(config.subagents[0].appendSystemPrompt, "Profile prompt");
+  assert.equal(config.subagents[0].model, "profile-model");
+  assert.equal(config.subagents[0].thinking, "minimal");
+  assert.equal(config.subagents[0].tools, "read,bash");
+  assert.equal(config.subagents[0].cwd, path.join(dir, "inline-cwd"));
+});
+
+test("loadSubagentProfile accepts standard YAML arrays", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-profile-test-"));
+  await fs.writeFile(path.join(dir, "array.yaml"), "tools:\n  - read\n  - bash\n");
+  assert.deepEqual(loadSubagentProfile("array.yaml", dir).tools, ["read", "bash"]);
+});
+
+test("loadSubagentProfile rejects task, nested profile, remote paths, and unknown fields", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-profile-test-"));
+  await fs.writeFile(path.join(dir, "task.yaml"), "task: nope\n");
+  await fs.writeFile(path.join(dir, "nested.yaml"), "profile: other.yaml\n");
+  await fs.writeFile(path.join(dir, "unknown.yaml"), "banana: nope\n");
+
+  assert.throws(() => loadSubagentProfile(path.join(dir, "task.yaml"), dir), /task belongs/);
+  assert.throws(() => loadSubagentProfile(path.join(dir, "nested.yaml"), dir), /nested profiles/);
+  assert.throws(() => loadSubagentProfile(path.join(dir, "unknown.yaml"), dir), /unknown field banana/);
+  assert.throws(() => loadSubagentProfile("https://example.com/profile.yaml", dir), /local file path/);
+});
+
+test("needsFork reads context from profiles", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-profile-test-"));
+  await fs.writeFile(path.join(dir, "fork.yaml"), "context: fork\n");
+  assert.equal(needsFork({ subagents: [{ profile: "fork.yaml", task: "review" }] }, dir), true);
 });
 
 test("buildRunConfig defaults thinking to medium", () => {

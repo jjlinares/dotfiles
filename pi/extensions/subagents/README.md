@@ -68,6 +68,19 @@ subagent({
 })
 ```
 
+Profile-backed child:
+
+```ts
+subagent({
+  subagents: [
+    {
+      profile: "agents/correctness-reviewer.yaml",
+      task: "Review the current diff."
+    }
+  ]
+})
+```
+
 Check status:
 
 ```ts
@@ -98,6 +111,7 @@ Per-subagent overrides inside `subagents[]`:
 
 | Field | Meaning |
 |---|---|
+| `profile` | Optional local YAML profile path for subagent defaults. |
 | `name` | Child label. |
 | `task` | Required task for this child subagent. |
 | `appendSystemPrompt` | Optional subagent-specific role/config prompt appended to Pi's core system prompt. If omitted, inherits the top-level prompt if present. |
@@ -106,6 +120,34 @@ Per-subagent overrides inside `subagents[]`:
 | `thinking` | Override top-level `thinking`. |
 | `tools` | Override top-level `tools`. |
 | `cwd` | Relative to top-level resolved cwd. |
+
+## Profiles
+
+Profiles are local YAML files for reusable subagent defaults. The task always stays in the tool call.
+
+```yaml
+name: correctness-reviewer
+description: Use when reviewing diffs for bugs and regressions.
+appendSystemPrompt: |
+  You are a correctness reviewer.
+  Return findings only.
+context: fresh
+model: sonnet
+thinking: high
+tools: "read,bash"
+cwd: .
+```
+
+Allowed profile fields: `name`, `description`, `appendSystemPrompt`, `context`, `model`, `thinking`, `tools`, `cwd`.
+
+Rules:
+
+- `description` is ignored at runtime; it exists to help the parent decide when to use the profile.
+- `task` is rejected in profiles.
+- nested `profile` is rejected.
+- remote URLs are rejected; profiles are local files only.
+- profile paths resolve relative to the parent session cwd.
+- config precedence is `top-level defaults < profile < inline subagent fields`.
 
 Actions:
 
@@ -227,9 +269,16 @@ Then restart Pi or run `/reload`.
 
 ### Manual local package install
 
-This folder is a private Pi package. From the dotfiles repo root:
+Use the repo setup script; it installs runtime dependencies before registering the local Pi package:
 
 ```bash
+./pi/setup.sh
+```
+
+If installing manually, install dependencies first:
+
+```bash
+npm --prefix pi/extensions/subagents ci --omit=peer --legacy-peer-deps
 pi install ./pi/extensions/subagents
 ```
 
