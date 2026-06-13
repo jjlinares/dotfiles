@@ -44,7 +44,7 @@ Accepted values:
 - `low`
 - `medium`
 - `high`
-- `extra-high`
+- `xhigh`
 
 Default to the orchestrator agent's current thinking level when the user does not specify one.
 

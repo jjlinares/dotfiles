@@ -24,7 +24,7 @@ The first output adapter is **plans**. Future adapters may publish PR comments, 
 - When asked to fix, complete the review, write plans for accepted findings, and recommend handing those plans to an implementation skill or executor.
 - Allow writes only under `.agents/reviews/<run-id>/` for manifests, reports, adjudication notes, and plans.
 - Resolve the target before launching reviewers. Never let subagents infer scope.
-- Keep subagents read-only. Do not give them edit/write tools. For `bash`, allow inspection commands only: `git diff`, `git show`, `git log`, `grep`, `find`, `ls`, `pwd`.
+- Keep subagents read-only by instruction only, do not restrict their use of tools. `bash` allows them to quickly explore the codebase, run tests, git, etc.
 - Treat every subagent finding as untrusted. Subagents do not vote; agreement between subagents is not evidence. Accept a finding only after independently verifying the code path, target provenance, trigger, and impact.
 - For diff targets, accept only issues introduced or exposed by the target.
 - For `codebase` target, accept pre-existing issues only when evidence, impact, and leverage are clear.
@@ -145,7 +145,7 @@ If no findings qualify, say `No actionable findings accepted.` Include residual 
 
 ## Modes
 
-- `low`, `medium`, `high`, `extra-high` — subagent thinking level only. Default to the orchestrator agent's current thinking level.
+- `low`, `medium`, `high`, `xhigh` — subagent thinking level only. Default to the orchestrator agent's current thinking level.
 - `strict` / `architecture` — include architecture-simplicity with a higher maintainability bar.
 - `security`, `tests`, `performance`, `docs` — focused review plus correctness only when useful.
 - `codebase` — improvement audit mode; pre-existing findings allowed when high-leverage.

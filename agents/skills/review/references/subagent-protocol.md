@@ -10,10 +10,10 @@ Give each subagent exactly one role. Subagents return candidate findings only. T
 Review the pinned target for this role only.
 
 Read-only constraints:
-- Do not edit files.
+- Do not edit files, even if edit/write tools are available.
 - Do not run formatters, package installs, generators, commits, pushes, or mutation commands.
-- Do not run tests unless the orchestrator explicitly allowed a specific read-only command in context.md.
-- Use read/grep/find/ls and bash for inspection only.
+- Do not run tests unless the orchestrator explicitly allowed a specific command in context.md.
+- Use bash for inspection only: git diff/show/log/status, rg/grep/find/ls/pwd, and approved test commands.
 - Treat the base/head SHAs and commands in target.md as the source of truth.
 
 Inputs:
