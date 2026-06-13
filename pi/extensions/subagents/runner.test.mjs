@@ -60,12 +60,12 @@ async function writeConfig(dir, config) {
   return { runDir, configPath };
 }
 
-test("runner completes parallel tasks and writes aggregate result", async () => {
+test("runner completes parallel subagents and writes aggregate result", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-runner-test-"));
   const fakePi = await makeFakePi(dir);
   const { runDir, configPath } = await writeConfig(dir, {
     runId: "okrun",
-    tasks: [
+    subagents: [
       { id: "okrun-0", name: "one", task: "inspect one", context: "fresh", thinking: "high" },
       { id: "okrun-1", name: "two", task: "inspect two", context: "fresh" },
     ],
@@ -76,14 +76,14 @@ test("runner completes parallel tasks and writes aggregate result", async () => 
 
   const status = JSON.parse(await fs.readFile(path.join(runDir, "status.json"), "utf8"));
   assert.equal(status.state, "complete");
-  assert.equal(status.tasks.length, 2);
-  assert.deepEqual(status.tasks.map((task) => task.state), ["complete", "complete"]);
-  assert.equal(status.tasks[0].usage.input, 3);
-  assert.equal(status.tasks[1].usage.output, 5);
-  assert.equal(status.tasks[0].thinking, "high");
-  assert.match(path.basename(status.tasks[0].outputFile), /^output-0-one\.md$/);
+  assert.equal(status.subagents.length, 2);
+  assert.deepEqual(status.subagents.map((subagent) => subagent.state), ["complete", "complete"]);
+  assert.equal(status.subagents[0].usage.input, 3);
+  assert.equal(status.subagents[1].usage.output, 5);
+  assert.equal(status.subagents[0].thinking, "high");
+  assert.match(path.basename(status.subagents[0].outputFile), /^output-0-one\.md$/);
   assert.equal(await fs.readFile(path.join(runDir, "input-0-one.md"), "utf8"), "Task:\ninspect one\n");
-  assert.match(await fs.readFile(status.tasks[0].outputFile, "utf8"), /result for Task: inspect one/);
+  assert.match(await fs.readFile(status.subagents[0].outputFile, "utf8"), /result for Task: inspect one/);
 
   const aggregate = await fs.readFile(path.join(runDir, "result.md"), "utf8");
   assert.match(aggregate, /## one — complete/);
@@ -91,7 +91,7 @@ test("runner completes parallel tasks and writes aggregate result", async () => 
   assert.match(aggregate, /## two — complete/);
 
   const files = await fs.readdir(runDir);
-  assert.equal(files.some((file) => file.endsWith(".jsonl") && file.startsWith("task-")), false);
+  assert.equal(files.some((file) => file.endsWith(".jsonl") && file.startsWith("subagent-")), false);
   const events = await fs.readFile(path.join(runDir, "events.jsonl"), "utf8");
   assert.match(events, /--thinking/);
   assert.match(events, /high/);
@@ -102,7 +102,7 @@ test("runner completes parallel tasks and writes aggregate result", async () => 
   assert.equal((await fs.stat(runDir)).mode & 0o777, 0o700);
   assert.equal((await fs.stat(path.join(runDir, "status.json"))).mode & 0o777, 0o600);
   assert.equal((await fs.stat(path.join(runDir, "result.md"))).mode & 0o777, 0o600);
-  assert.equal((await fs.stat(status.tasks[0].outputFile)).mode & 0o777, 0o600);
+  assert.equal((await fs.stat(status.subagents[0].outputFile)).mode & 0o777, 0o600);
   assert.equal((await fs.stat(path.join(runDir, "events.jsonl"))).mode & 0o777, 0o600);
 });
 
@@ -111,7 +111,7 @@ test("runner accumulates usage across assistant turns", async () => {
   const fakePi = await makeFakePi(dir);
   const { runDir, configPath } = await writeConfig(dir, {
     runId: "turnsrun",
-    tasks: [
+    subagents: [
       { id: "turnsrun-0", name: "turns", task: "two-turns", context: "fresh" },
     ],
   });
@@ -120,11 +120,11 @@ test("runner accumulates usage across assistant turns", async () => {
   assert.equal(result.code, 0, result.stderr);
 
   const status = JSON.parse(await fs.readFile(path.join(runDir, "status.json"), "utf8"));
-  assert.equal(status.tasks[0].usage.turns, 2);
-  assert.equal(status.tasks[0].usage.input, 6);
-  assert.equal(status.tasks[0].usage.output, 10);
-  assert.equal(status.tasks[0].usage.totalTokens, 16);
-  assert.equal(status.tasks[0].usage.cost, 0.04);
+  assert.equal(status.subagents[0].usage.turns, 2);
+  assert.equal(status.subagents[0].usage.input, 6);
+  assert.equal(status.subagents[0].usage.output, 10);
+  assert.equal(status.subagents[0].usage.totalTokens, 16);
+  assert.equal(status.subagents[0].usage.cost, 0.04);
 });
 
 test("runner passes tool and system prompt append arguments", async () => {
@@ -132,7 +132,7 @@ test("runner passes tool and system prompt append arguments", async () => {
   const fakePi = await makeFakePi(dir);
   const { runDir, configPath } = await writeConfig(dir, {
     runId: "argsrun",
-    tasks: [
+    subagents: [
       { id: "argsrun-0", name: "args", task: "inspect", context: "fresh", tools: false, appendSystemPrompt: "Custom" },
     ],
   });
@@ -153,7 +153,7 @@ test("runner writes raw child jsonl only when includeJsonl is true", async () =>
   const { runDir, configPath } = await writeConfig(dir, {
     runId: "jsonlrun",
     includeJsonl: true,
-    tasks: [
+    subagents: [
       { id: "jsonlrun-0", name: "one", task: "inspect one", context: "fresh" },
     ],
   });
@@ -162,7 +162,7 @@ test("runner writes raw child jsonl only when includeJsonl is true", async () =>
   assert.equal(result.code, 0, result.stderr);
 
   const status = JSON.parse(await fs.readFile(path.join(runDir, "status.json"), "utf8"));
-  assert.match(await fs.readFile(status.tasks[0].stdoutFile, "utf8"), /message_end/);
+  assert.match(await fs.readFile(status.subagents[0].stdoutFile, "utf8"), /message_end/);
 });
 
 test("runner caps raw child jsonl", async () => {
@@ -172,7 +172,7 @@ test("runner caps raw child jsonl", async () => {
     runId: "caprun",
     includeJsonl: true,
     maxJsonlBytes: 200,
-    tasks: [
+    subagents: [
       { id: "caprun-0", name: "one", task: "many-jsonl", context: "fresh" },
     ],
   });
@@ -181,7 +181,7 @@ test("runner caps raw child jsonl", async () => {
   assert.equal(result.code, 0, result.stderr);
 
   const status = JSON.parse(await fs.readFile(path.join(runDir, "status.json"), "utf8"));
-  assert.match(await fs.readFile(status.tasks[0].stdoutFile, "utf8"), /subagent_jsonl_truncated/);
+  assert.match(await fs.readFile(status.subagents[0].stdoutFile, "utf8"), /subagent_jsonl_truncated/);
 });
 
 test("runner final-drains child that lingers after clean final output", async () => {
@@ -189,7 +189,7 @@ test("runner final-drains child that lingers after clean final output", async ()
   const fakePi = await makeFakePi(dir);
   const { runDir, configPath } = await writeConfig(dir, {
     runId: "linger",
-    tasks: [
+    subagents: [
       { id: "linger-0", name: "linger", task: "linger-after-stop", context: "fresh" },
     ],
   });
@@ -201,16 +201,16 @@ test("runner final-drains child that lingers after clean final output", async ()
 
   const status = JSON.parse(await fs.readFile(path.join(runDir, "status.json"), "utf8"));
   assert.equal(status.state, "complete");
-  assert.equal(status.tasks[0].state, "complete");
-  assert.equal(status.tasks[0].exitCode, 0);
+  assert.equal(status.subagents[0].state, "complete");
+  assert.equal(status.subagents[0].exitCode, 0);
 });
 
-test("runner marks failed task and exits nonzero", async () => {
+test("runner marks failed subagent and exits nonzero", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-runner-test-"));
   const fakePi = await makeFakePi(dir);
   const { runDir, configPath } = await writeConfig(dir, {
     runId: "failrun",
-    tasks: [
+    subagents: [
       { id: "failrun-0", name: "good", task: "inspect", context: "fresh" },
       { id: "failrun-1", name: "bad", task: "fail this", context: "fresh" },
     ],
@@ -221,15 +221,15 @@ test("runner marks failed task and exits nonzero", async () => {
 
   const status = JSON.parse(await fs.readFile(path.join(runDir, "status.json"), "utf8"));
   assert.equal(status.state, "failed");
-  assert.deepEqual(status.tasks.map((task) => task.state), ["complete", "failed"]);
-  assert.equal(status.tasks[1].exitCode, 7);
+  assert.deepEqual(status.subagents.map((subagent) => subagent.state), ["complete", "failed"]);
+  assert.equal(status.subagents[1].exitCode, 7);
 
-  const stderr = await fs.readFile(status.tasks[1].stderrFile, "utf8");
+  const stderr = await fs.readFile(status.subagents[1].stderrFile, "utf8");
   assert.match(stderr, /fake failure/);
-  assert.equal((await fs.stat(status.tasks[1].stderrFile)).mode & 0o777, 0o600);
+  assert.equal((await fs.stat(status.subagents[1].stderrFile)).mode & 0o777, 0o600);
 });
 
-test("runner does not launch queued tasks after abort", async () => {
+test("runner does not launch queued subagents after abort", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-runner-test-"));
   const fakePi = await makeFakePi(dir);
   const runDir = path.join(dir, "run");
@@ -243,28 +243,28 @@ test("runner does not launch queued tasks after abort", async () => {
     notify: "none",
     concurrency: 1,
     piScript: fakePi,
-    tasks: [
+    subagents: [
       { id: "abortrun-0", name: "slow", task: "slow task", context: "fresh", cwd: dir },
       { id: "abortrun-1", name: "queued", task: "inspect", context: "fresh", cwd: dir },
     ],
   }, { signal: controller.signal });
 
   assert.equal(status.state, "failed");
-  assert.equal(status.tasks[0].state, "failed");
-  assert.equal(status.tasks[0].error, "Aborted");
-  assert.equal(status.tasks[1].state, "failed");
-  assert.equal(status.tasks[1].error, "Aborted before start");
+  assert.equal(status.subagents[0].state, "failed");
+  assert.equal(status.subagents[0].error, "Aborted");
+  assert.equal(status.subagents[1].state, "failed");
+  assert.equal(status.subagents[1].error, "Aborted before start");
   const events = await fs.readFile(path.join(runDir, "events.jsonl"), "utf8");
   assert.doesNotMatch(events, /queued/);
 });
 
-test("runner times out slow tasks", async () => {
+test("runner times out slow subagents", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-runner-test-"));
   const fakePi = await makeFakePi(dir);
   const { runDir, configPath } = await writeConfig(dir, {
     runId: "slowrun",
     timeoutMs: 100,
-    tasks: [
+    subagents: [
       { id: "slowrun-0", name: "slow", task: "slow task", context: "fresh" },
     ],
   });
@@ -274,5 +274,5 @@ test("runner times out slow tasks", async () => {
 
   const status = JSON.parse(await fs.readFile(path.join(runDir, "status.json"), "utf8"));
   assert.equal(status.state, "failed");
-  assert.match(status.tasks[0].error, /Timed out/);
+  assert.match(status.subagents[0].error, /Timed out/);
 });

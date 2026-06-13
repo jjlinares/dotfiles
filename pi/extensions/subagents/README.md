@@ -7,7 +7,7 @@ Tiny subagent launcher for Pi.
 A subagent is not a special object type. It is a child Pi session launched with:
 
 - a task
-- an optional system prompt
+- an optional system-prompt append
 - optional Pi config such as model, thinking, tools, cwd, and context mode
 
 This extension provides orchestration infrastructure only. It does not own your agent taxonomy. The parent session decides what child roles are needed for the current problem and passes those roles as prompts.
@@ -32,8 +32,12 @@ Single child:
 
 ```ts
 subagent({
-  task: "Review the current diff for correctness. Return findings only.",
-  appendSystemPrompt: "You are a correctness reviewer.",
+  subagents: [
+    {
+      task: "Review the current diff for correctness. Return findings only.",
+      appendSystemPrompt: "You are a correctness reviewer."
+    }
+  ],
   context: "fresh"
 })
 ```
@@ -42,7 +46,7 @@ Parallel fanout:
 
 ```ts
 subagent({
-  tasks: [
+  subagents: [
     {
       name: "correctness",
       task: "Review the current diff for correctness and regressions. Return findings only.",
@@ -77,10 +81,8 @@ Top-level:
 
 | Field | Meaning |
 |---|---|
-| `task` | Single child task. Mutually exclusive with `tasks`. |
-| `tasks` | Parallel child tasks. |
-| `name` | Label for single child. |
-| `appendSystemPrompt` | Optional default role/config prompt appended to Pi's core system prompt. Used by single child and fanout tasks that omit their own. If omitted, no prompt override is passed. |
+| `subagents` | Required non-empty array. Each entry launches one child Pi session. Use one entry for a single child. |
+| `appendSystemPrompt` | Optional default role/config prompt appended to Pi's core system prompt. Used by subagents that omit their own. If omitted, no prompt override is passed. |
 | `context` | `fresh` default, or `fork`. |
 | `model` | Child model override. Thinking suffixes like `sonnet:high` also work. |
 | `thinking` | Child thinking level: `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. Default `medium`. Passed as `--thinking`. |
@@ -92,13 +94,13 @@ Top-level:
 | `async` | `false` default. Set `true` to run in background and return immediately. |
 | `notify` | Background completion behavior: `tui` default, `followUp`, or `none`. Ignored for foreground runs. |
 
-Per-task overrides inside `tasks[]`:
+Per-subagent overrides inside `subagents[]`:
 
 | Field | Meaning |
 |---|---|
 | `name` | Child label. |
-| `task` | Required child task. |
-| `appendSystemPrompt` | Optional task-specific role/config prompt appended to Pi's core system prompt. If omitted, inherits the top-level prompt if present. |
+| `task` | Required task for this child subagent. |
+| `appendSystemPrompt` | Optional subagent-specific role/config prompt appended to Pi's core system prompt. If omitted, inherits the top-level prompt if present. |
 | `context` | Override top-level `context`. |
 | `model` | Override top-level `model`. |
 | `thinking` | Override top-level `thinking`. |
@@ -116,7 +118,7 @@ Actions:
 Default foreground behavior:
 
 ```ts
-subagent({ task: "Review the diff" })
+subagent({ subagents: [{ task: "Review the diff" }] })
 ```
 
 The tool waits for all children, streams status updates, then returns the aggregate result to the parent.
@@ -124,7 +126,7 @@ The tool waits for all children, streams status updates, then returns the aggreg
 Background behavior:
 
 ```ts
-subagent({ task: "Review the diff", async: true })
+subagent({ subagents: [{ task: "Review the diff" }], async: true })
 ```
 
 The tool returns a run id immediately. Inspect later with `subagent({ action: "status", id })`.
@@ -176,7 +178,7 @@ Prompt-only safety is not a sandbox. If you allow `bash`, a child can mutate fil
 ```ts
 subagent({
   appendSystemPrompt: "You are a read-only reviewer. Do not modify files.",
-  task: "Review src/",
+  subagents: [{ task: "Review src/" }],
   tools: "read,grep,find,ls"
 })
 ```
@@ -185,7 +187,7 @@ subagent({
 
 Foreground and background runs share the same executor (`executor.mjs`). Foreground calls it in-process so status updates can stream back to the parent tool call. Background launches `runner.mjs`, which is only a thin detached wrapper around the same executor.
 
-Foreground progress is rendered from structured status details, not raw child logs. Collapsed results show a fanout card with queued/running/complete/failed states, current tool/path, per-task tools/turns/tokens/cost/runtime, recent tool use, and up to two output lines. Expanded results add more recent tools/output plus per-task output/jsonl paths.
+Foreground progress is rendered from structured status details, not raw child logs. Collapsed results show a fanout card with queued/running/complete/failed states, current tool/path, per-subagent tools/turns/tokens/cost/runtime, recent tool use, and up to two output lines. Expanded results add more recent tools/output plus per-subagent output/jsonl paths.
 
 ## Runtime files
 
@@ -200,14 +202,14 @@ Important files:
 | File | Meaning |
 |---|---|
 | `config.json` | Runner config. |
-| `status.json` | Current run/task state. |
-| `events.jsonl` | Compact runner task start/end/error events. Does not duplicate child JSON. |
+| `status.json` | Current run/subagent state. |
+| `events.jsonl` | Compact runner subagent start/end/error events. Does not duplicate child JSON. |
 | `result.md` | Aggregate result after completion. |
 | `prompt-*.md` | Optional per-child system prompt append, only written when `appendSystemPrompt` is provided. |
 | `input-*.md` | Per-child task input passed to Pi. |
 | `output-*.md` | Per-child final output. |
-| `task-*.jsonl` | Per-child raw Pi JSON stdout, only when `includeJsonl: true`; capped at 50 MB per child. |
-| `task-*.stderr.log` | Per-child stderr. |
+| `subagent-*.jsonl` | Per-child raw Pi JSON stdout, only when `includeJsonl: true`; capped at 50 MB per child. |
+| `subagent-*.stderr.log` | Per-child stderr. |
 
 ## Install
 

@@ -75,7 +75,7 @@ function createStatus(config) {
     updatedAt: now(),
     completedAt: undefined,
     error: undefined,
-    tasks: config.tasks.map((task, index) => ({
+    subagents: config.subagents.map((task, index) => ({
       id: task.id,
       index,
       name: task.name,
@@ -100,18 +100,18 @@ function createStatus(config) {
       recentTools: [],
       recentOutput: [],
       outputFile: path.join(config.runDir, `output-${index}-${safeName(task.name)}.md`),
-      stderrFile: path.join(config.runDir, `task-${index}-${safeName(task.name)}.stderr.log`),
-      ...(config.includeJsonl ? { stdoutFile: path.join(config.runDir, `task-${index}-${safeName(task.name)}.jsonl`) } : {}),
+      stderrFile: path.join(config.runDir, `subagent-${index}-${safeName(task.name)}.stderr.log`),
+      ...(config.includeJsonl ? { stdoutFile: path.join(config.runDir, `subagent-${index}-${safeName(task.name)}.jsonl`) } : {}),
       usage: emptyUsage(),
     })),
   };
 }
 
 function persist(status, statusPath, onUpdate) {
-  const completed = status.tasks.filter((task) => ["complete", "failed"].includes(task.state)).length;
-  const failed = status.tasks.filter((task) => task.state === "failed").length;
+  const completed = status.subagents.filter((task) => ["complete", "failed"].includes(task.state)).length;
+  const failed = status.subagents.filter((task) => task.state === "failed").length;
   status.updatedAt = now();
-  if (completed === status.tasks.length) {
+  if (completed === status.subagents.length) {
     status.state = failed > 0 ? "failed" : "complete";
     status.completedAt ??= now();
   } else {
@@ -121,7 +121,7 @@ function persist(status, statusPath, onUpdate) {
   onUpdate?.(status);
 }
 
-function writeTaskFiles(config, task, index) {
+function writeSubagentFiles(config, task, index) {
   const name = safeName(task.name);
   const promptPath = task.appendSystemPrompt ? path.join(config.runDir, `prompt-${index}-${name}.md`) : undefined;
   if (promptPath) fs.writeFileSync(promptPath, task.appendSystemPrompt, { encoding: "utf8", mode: 0o600 });
@@ -131,8 +131,8 @@ function writeTaskFiles(config, task, index) {
   return { promptPath, taskPath };
 }
 
-function argsForTask(config, task, index) {
-  const { promptPath, taskPath } = writeTaskFiles(config, task, index);
+function argsForSubagent(config, task, index) {
+  const { promptPath, taskPath } = writeSubagentFiles(config, task, index);
   const args = ["--mode", "json", "-p", "--no-extensions"];
   if (task.sessionFile) args.push("--session", task.sessionFile);
   else args.push("--no-session");
@@ -148,26 +148,26 @@ function argsForTask(config, task, index) {
   return args;
 }
 
-function appendRawJsonl(taskStatus, line, rawJsonlBytes, config) {
-  if (!taskStatus.stdoutFile) return;
+function appendRawJsonl(subagentStatus, line, rawJsonlBytes, config) {
+  if (!subagentStatus.stdoutFile) return;
   const maxBytes = config.maxJsonlBytes ?? MAX_JSONL_BYTES;
   const chunk = `${line}\n`;
-  const current = rawJsonlBytes.get(taskStatus.stdoutFile) ?? 0;
+  const current = rawJsonlBytes.get(subagentStatus.stdoutFile) ?? 0;
   const size = Buffer.byteLength(chunk, "utf8");
   if (current >= maxBytes) return;
   if (current + size > maxBytes) {
     const marker = `{"type":"subagent_jsonl_truncated","maxBytes":${maxBytes}}\n`;
-    fs.appendFileSync(taskStatus.stdoutFile, marker, { mode: 0o600 });
-    rawJsonlBytes.set(taskStatus.stdoutFile, maxBytes);
+    fs.appendFileSync(subagentStatus.stdoutFile, marker, { mode: 0o600 });
+    rawJsonlBytes.set(subagentStatus.stdoutFile, maxBytes);
     return;
   }
-  fs.appendFileSync(taskStatus.stdoutFile, chunk, { mode: 0o600 });
-  rawJsonlBytes.set(taskStatus.stdoutFile, current + size);
+  fs.appendFileSync(subagentStatus.stdoutFile, chunk, { mode: 0o600 });
+  rawJsonlBytes.set(subagentStatus.stdoutFile, current + size);
 }
 
-function processJsonLine({ line, taskStatus, config, index, setFinalOutput, status, statusPath, onUpdate, rawJsonlBytes, onFinalStop }) {
+function processJsonLine({ line, subagentStatus, config, index, setFinalOutput, status, statusPath, onUpdate, rawJsonlBytes, onFinalStop }) {
   if (!line.trim()) return;
-  appendRawJsonl(taskStatus, line, rawJsonlBytes, config);
+  appendRawJsonl(subagentStatus, line, rawJsonlBytes, config);
 
   let event;
   try {
@@ -178,48 +178,48 @@ function processJsonLine({ line, taskStatus, config, index, setFinalOutput, stat
 
   if (event.type === "message_end" && event.message) {
     if (event.message.role === "assistant") {
-      taskStatus.usage.turns += 1;
-      addUsage(taskStatus.usage, event.message);
+      subagentStatus.usage.turns += 1;
+      addUsage(subagentStatus.usage, event.message);
       const text = textFromMessage(event.message).trim();
       if (text) {
         setFinalOutput(text);
         const outputLines = text.split("\n").filter((part) => part.trim()).slice(-5);
-        taskStatus.recentOutput = outputLines;
-        taskStatus.preview = text.split("\n").find((part) => part.trim())?.slice(0, 240) || taskStatus.preview;
+        subagentStatus.recentOutput = outputLines;
+        subagentStatus.preview = text.split("\n").find((part) => part.trim())?.slice(0, 240) || subagentStatus.preview;
       }
-      if (event.message.errorMessage) taskStatus.warning = event.message.errorMessage;
+      if (event.message.errorMessage) subagentStatus.warning = event.message.errorMessage;
       const stopReason = event.message.stopReason;
       const hasToolCall = Array.isArray(event.message.content) && event.message.content.some((part) => part?.type === "toolCall");
       if (stopReason === "stop" && !hasToolCall) onFinalStop?.({ clean: !event.message.errorMessage && Boolean(text) });
     }
-    taskStatus.updatedAt = now();
+    subagentStatus.updatedAt = now();
     persist(status, statusPath, onUpdate);
   }
 
   if (event.type === "tool_execution_start" || event.type === "tool_call") {
-    taskStatus.currentTool = event.toolName || event.name || "unknown";
-    taskStatus.currentToolArgs = event.args ? JSON.stringify(event.args).slice(0, 240) : undefined;
-    taskStatus.currentToolStartedAt = now();
-    taskStatus.currentPath = event.args?.path || event.args?.file_path || event.args?.command;
-    taskStatus.toolCount = (taskStatus.toolCount || 0) + 1;
-    taskStatus.preview = `tool: ${taskStatus.currentTool}${taskStatus.currentPath ? ` ${String(taskStatus.currentPath).slice(0, 160)}` : ""}`;
-    taskStatus.updatedAt = now();
+    subagentStatus.currentTool = event.toolName || event.name || "unknown";
+    subagentStatus.currentToolArgs = event.args ? JSON.stringify(event.args).slice(0, 240) : undefined;
+    subagentStatus.currentToolStartedAt = now();
+    subagentStatus.currentPath = event.args?.path || event.args?.file_path || event.args?.command;
+    subagentStatus.toolCount = (subagentStatus.toolCount || 0) + 1;
+    subagentStatus.preview = `tool: ${subagentStatus.currentTool}${subagentStatus.currentPath ? ` ${String(subagentStatus.currentPath).slice(0, 160)}` : ""}`;
+    subagentStatus.updatedAt = now();
     persist(status, statusPath, onUpdate);
   }
 
   if (event.type === "tool_execution_end") {
-    if (taskStatus.currentTool) {
-      taskStatus.recentTools = [...(taskStatus.recentTools || []), {
-        tool: taskStatus.currentTool,
-        args: taskStatus.currentToolArgs || "",
+    if (subagentStatus.currentTool) {
+      subagentStatus.recentTools = [...(subagentStatus.recentTools || []), {
+        tool: subagentStatus.currentTool,
+        args: subagentStatus.currentToolArgs || "",
         endMs: now(),
       }].slice(-3);
     }
-    taskStatus.currentTool = undefined;
-    taskStatus.currentToolArgs = undefined;
-    taskStatus.currentToolStartedAt = undefined;
-    taskStatus.currentPath = undefined;
-    taskStatus.updatedAt = now();
+    subagentStatus.currentTool = undefined;
+    subagentStatus.currentToolArgs = undefined;
+    subagentStatus.currentToolStartedAt = undefined;
+    subagentStatus.currentPath = undefined;
+    subagentStatus.updatedAt = now();
     persist(status, statusPath, onUpdate);
   }
 }
@@ -233,16 +233,16 @@ function killChild(child, signal = "SIGTERM") {
   }
 }
 
-async function runTask(config, status, statusPath, eventsPath, task, index, options) {
-  const taskStatus = status.tasks[index];
-  taskStatus.state = "running";
-  taskStatus.startedAt = now();
-  taskStatus.updatedAt = now();
+async function runSubagent(config, status, statusPath, eventsPath, task, index, options) {
+  const subagentStatus = status.subagents[index];
+  subagentStatus.state = "running";
+  subagentStatus.startedAt = now();
+  subagentStatus.updatedAt = now();
   persist(status, statusPath, options.onUpdate);
 
-  const args = argsForTask(config, task, index);
+  const args = argsForSubagent(config, task, index);
   const invocation = getPiInvocation(args, config);
-  appendEvent(eventsPath, { type: "task_start", ts: now(), index, name: task.name, args: invocation.args });
+  appendEvent(eventsPath, { type: "subagent_start", ts: now(), index, name: task.name, args: invocation.args });
 
   let finalOutput = "";
   let stdoutBuffer = "";
@@ -276,7 +276,7 @@ async function runTask(config, status, statusPath, eventsPath, task, index, opti
     if (childExited || finalDrainTimer || timedOut || aborted) return;
     finalDrainTimer = setTimeout(() => {
       forcedFinalDrain = true;
-      if (!cleanTerminalAssistantStop && !taskStatus.error) taskStatus.error = "Subagent process did not exit after final message.";
+      if (!cleanTerminalAssistantStop && !subagentStatus.error) subagentStatus.error = "Subagent process did not exit after final message.";
       killChild(child, "SIGTERM");
       finalHardKillTimer = setTimeout(() => killChild(child, "SIGKILL"), KILL_GRACE_MS);
       finalHardKillTimer.unref?.();
@@ -287,7 +287,7 @@ async function runTask(config, status, statusPath, eventsPath, task, index, opti
   const timeout = config.timeoutMs && config.timeoutMs > 0
     ? setTimeout(() => {
       timedOut = true;
-      taskStatus.error = `Timed out after ${config.timeoutMs}ms`;
+      subagentStatus.error = `Timed out after ${config.timeoutMs}ms`;
       killChild(child, "SIGTERM");
       const hardKill = setTimeout(() => killChild(child, "SIGKILL"), KILL_GRACE_MS);
       hardKill.unref?.();
@@ -298,7 +298,7 @@ async function runTask(config, status, statusPath, eventsPath, task, index, opti
 
   const abort = () => {
     aborted = true;
-    taskStatus.error = "Aborted";
+    subagentStatus.error = "Aborted";
     killChild(child, "SIGTERM");
     const hardKill = setTimeout(() => killChild(child, "SIGKILL"), KILL_GRACE_MS);
     hardKill.unref?.();
@@ -312,14 +312,14 @@ async function runTask(config, status, statusPath, eventsPath, task, index, opti
     const lines = stdoutBuffer.split("\n");
     stdoutBuffer = lines.pop() || "";
     for (const line of lines) {
-      processJsonLine({ line, taskStatus, config, index, setFinalOutput: (text) => { finalOutput = text; }, status, statusPath, onUpdate: options.onUpdate, rawJsonlBytes, onFinalStop: startFinalDrain });
+      processJsonLine({ line, subagentStatus, config, index, setFinalOutput: (text) => { finalOutput = text; }, status, statusPath, onUpdate: options.onUpdate, rawJsonlBytes, onFinalStop: startFinalDrain });
     }
   });
 
   child.stderr.on("data", (chunk) => {
     const text = chunk.toString();
     stderrBuffer += text;
-    fs.appendFileSync(taskStatus.stderrFile, text, { mode: 0o600 });
+    fs.appendFileSync(subagentStatus.stderrFile, text, { mode: 0o600 });
   });
 
   const exitCode = await new Promise((resolve) => {
@@ -329,7 +329,7 @@ async function runTask(config, status, statusPath, eventsPath, task, index, opti
     });
     child.on("close", (code, signal) => resolve(code ?? (signal ? 1 : 0)));
     child.on("error", (error) => {
-      taskStatus.error = error.message;
+      subagentStatus.error = error.message;
       resolve(1);
     });
   });
@@ -340,27 +340,27 @@ async function runTask(config, status, statusPath, eventsPath, task, index, opti
   options.signal?.removeEventListener?.("abort", abort);
 
   if (stdoutBuffer.trim()) {
-    processJsonLine({ line: stdoutBuffer, taskStatus, config, index, setFinalOutput: (text) => { finalOutput = text; }, status, statusPath, onUpdate: options.onUpdate, rawJsonlBytes, onFinalStop: startFinalDrain });
+    processJsonLine({ line: stdoutBuffer, subagentStatus, config, index, setFinalOutput: (text) => { finalOutput = text; }, status, statusPath, onUpdate: options.onUpdate, rawJsonlBytes, onFinalStop: startFinalDrain });
   }
 
   if (!finalOutput && stderrBuffer.trim()) finalOutput = stderrBuffer.trim();
-  if (!finalOutput && taskStatus.warning) taskStatus.error = taskStatus.warning;
-  if (!finalOutput) finalOutput = taskStatus.error || "(no output)";
+  if (!finalOutput && subagentStatus.warning) subagentStatus.error = subagentStatus.warning;
+  if (!finalOutput) finalOutput = subagentStatus.error || "(no output)";
 
   const effectiveExitCode = forcedFinalDrain && cleanTerminalAssistantStop && finalOutput && !timedOut && !aborted ? 0 : exitCode;
-  taskStatus.exitCode = effectiveExitCode;
-  taskStatus.completedAt = now();
-  taskStatus.updatedAt = now();
-  if (timedOut) taskStatus.error = `Timed out after ${config.timeoutMs}ms`;
-  if (aborted) taskStatus.error = "Aborted";
-  taskStatus.state = effectiveExitCode === 0 && !taskStatus.error ? "complete" : "failed";
-  taskStatus.currentTool = undefined;
-  taskStatus.currentToolArgs = undefined;
-  taskStatus.currentToolStartedAt = undefined;
-  taskStatus.currentPath = undefined;
-  fs.writeFileSync(taskStatus.outputFile, finalOutput, { encoding: "utf8", mode: 0o600 });
-  taskStatus.preview = finalOutput.split("\n").find((line) => line.trim())?.slice(0, 240) || "(no output)";
-  appendEvent(eventsPath, { type: "task_end", ts: now(), index, name: task.name, exitCode: effectiveExitCode, error: taskStatus.error, forcedFinalDrain });
+  subagentStatus.exitCode = effectiveExitCode;
+  subagentStatus.completedAt = now();
+  subagentStatus.updatedAt = now();
+  if (timedOut) subagentStatus.error = `Timed out after ${config.timeoutMs}ms`;
+  if (aborted) subagentStatus.error = "Aborted";
+  subagentStatus.state = effectiveExitCode === 0 && !subagentStatus.error ? "complete" : "failed";
+  subagentStatus.currentTool = undefined;
+  subagentStatus.currentToolArgs = undefined;
+  subagentStatus.currentToolStartedAt = undefined;
+  subagentStatus.currentPath = undefined;
+  fs.writeFileSync(subagentStatus.outputFile, finalOutput, { encoding: "utf8", mode: 0o600 });
+  subagentStatus.preview = finalOutput.split("\n").find((line) => line.trim())?.slice(0, 240) || "(no output)";
+  appendEvent(eventsPath, { type: "subagent_end", ts: now(), index, name: task.name, exitCode: effectiveExitCode, error: subagentStatus.error, forcedFinalDrain });
   persist(status, statusPath, options.onUpdate);
 }
 
@@ -376,7 +376,7 @@ async function mapConcurrent(items, concurrency, fn, signal) {
 }
 
 function markQueuedAborted(status) {
-  for (const task of status.tasks) {
+  for (const task of status.subagents) {
     if (task.state !== "queued") continue;
     task.state = "failed";
     task.error = "Aborted before start";
@@ -387,7 +387,7 @@ function markQueuedAborted(status) {
 }
 
 function writeAggregate(config, status, resultPath) {
-  const sections = status.tasks.map((task) => {
+  const sections = status.subagents.map((task) => {
     const output = fs.existsSync(task.outputFile) ? fs.readFileSync(task.outputFile, "utf8").trim() : "(no output)";
     return `## ${task.name} — ${task.state}\n\n${output}`;
   });
@@ -404,7 +404,7 @@ export async function runSubagents(config, options = {}) {
   const status = createStatus(config);
   persist(status, statusPath, options.onUpdate);
   try {
-    await mapConcurrent(config.tasks, config.concurrency || 4, (task, index) => runTask(config, status, statusPath, eventsPath, task, index, options), options.signal);
+    await mapConcurrent(config.subagents, config.concurrency || 4, (task, index) => runSubagent(config, status, statusPath, eventsPath, task, index, options), options.signal);
     if (options.signal?.aborted) markQueuedAborted(status);
     const resultText = writeAggregate(config, status, resultPath);
     persist(status, statusPath, options.onUpdate);

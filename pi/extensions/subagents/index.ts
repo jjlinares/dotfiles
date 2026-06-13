@@ -42,7 +42,7 @@ const ToolOverride = Type.Unsafe({
 
 const ThinkingSchema = Type.String({ enum: ["off", "minimal", "low", "medium", "high", "xhigh"], description: "Child thinking level passed to Pi --thinking. Default medium." });
 
-const TaskSchema = Type.Object({
+const SubagentSchema = Type.Object({
 	name: Type.Optional(Type.String({ description: "Human-readable child label." })),
 	task: Type.String({ description: "User task for this child Pi session." }),
 	appendSystemPrompt: Type.Optional(Type.String({ description: "Optional role/config prompt appended to Pi's core system prompt for this child. No prompt override is passed when omitted." })),
@@ -57,10 +57,8 @@ const SubagentParamsSchema = Type.Object({
 	action: Type.Optional(Type.String({ enum: ["status"], description: "Use status to inspect runs." })),
 	id: Type.Optional(Type.String({ description: "Run id or prefix for status." })),
 
-	task: Type.Optional(Type.String({ description: "Single child task. Use either task or tasks." })),
-	name: Type.Optional(Type.String({ description: "Single child label." })),
-	appendSystemPrompt: Type.Optional(Type.String({ description: "Optional default role/config prompt appended to Pi's core system prompt; used by single child and by fanout tasks that omit appendSystemPrompt. No prompt override is passed when omitted." })),
-	tasks: Type.Optional(Type.Array(TaskSchema, { description: "Parallel fanout tasks." })),
+	appendSystemPrompt: Type.Optional(Type.String({ description: "Optional default role/config prompt appended to Pi's core system prompt; used by subagents that omit appendSystemPrompt. No prompt override is passed when omitted." })),
+	subagents: Type.Optional(Type.Array(SubagentSchema, { minItems: 1, description: "One or more child subagents to run." })),
 
 	context: Type.Optional(Type.String({ enum: ["fresh", "fork"], description: "Default fresh." })),
 	model: Type.Optional(Type.String({ description: "Default model override for children." })),
@@ -108,7 +106,7 @@ function prepareRun(params: SubagentParams, ctx: ExtensionContext): PreparedRun 
 	config.piScript = process.argv[1];
 	const configPath = path.join(runDir, "config.json");
 	fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
-	return { id: runId, dir: runDir, notify: config.notify, count: config.tasks.length, config, configPath };
+	return { id: runId, dir: runDir, notify: config.notify, count: config.subagents.length, config, configPath };
 }
 
 function compactPath(value: string | undefined): string {
@@ -132,11 +130,11 @@ function compactNumber(value: number): string {
 	return String(value);
 }
 
-function taskTokens(task: RunStatus["tasks"][number]): number {
+function subagentTokens(task: RunStatus["subagents"][number]): number {
 	return task.usage?.totalTokens || ((task.usage?.input ?? 0) + (task.usage?.output ?? 0));
 }
 
-function taskRuntime(task: RunStatus["tasks"][number]): string {
+function subagentRuntime(task: RunStatus["subagents"][number]): string {
 	if (!task.startedAt) return "";
 	return duration((task.completedAt ?? Date.now()) - task.startedAt);
 }
@@ -145,14 +143,14 @@ function truncateText(value: string, max = Math.max(80, (process.stdout.columns 
 	return value.length > max ? `${value.slice(0, Math.max(0, max - 3))}...` : value;
 }
 
-function taskOutputLines(task: RunStatus["tasks"][number], limit: number): string[] {
+function subagentOutputLines(task: RunStatus["subagents"][number], limit: number): string[] {
 	const recent = (task.recentOutput ?? []).filter((line) => line.trim());
 	if (recent.length > 0) return recent.slice(-limit).map((line) => truncateText(line.trim(), 120));
 	if (task.preview && !task.preview.startsWith("tool:")) return [truncateText(task.preview.trim(), 120)];
 	return [];
 }
 
-function latestToolLine(task: RunStatus["tasks"][number]): string | undefined {
+function latestToolLine(task: RunStatus["subagents"][number]): string | undefined {
 	if (task.currentTool) {
 		const args = task.currentToolArgs || (task.currentPath ? String(task.currentPath) : "");
 		return truncateText(`tool: ${task.currentTool}${args ? ` ${args}` : ""}`);
@@ -162,7 +160,7 @@ function latestToolLine(task: RunStatus["tasks"][number]): string | undefined {
 	return truncateText(`tool: ${tool.tool}${tool.args ? ` ${tool.args}` : ""}`);
 }
 
-function taskGlyph(state: string, theme: ExtensionContext["ui"]["theme"]): string {
+function subagentGlyph(state: string, theme: ExtensionContext["ui"]["theme"]): string {
 	if (state === "complete") return theme.fg("success", "✓");
 	if (state === "failed") return theme.fg("error", "✗");
 	if (state === "running") return theme.fg("accent", "◐");
@@ -174,10 +172,10 @@ function summarizeUsage(status: RunStatus): { tools: number; turns: number; toke
 	let turns = 0;
 	let tokens = 0;
 	let cost = 0;
-	for (const task of status.tasks) {
+	for (const task of status.subagents) {
 		tools += task.toolCount ?? 0;
 		turns += task.usage?.turns ?? 0;
-		tokens += taskTokens(task);
+		tokens += subagentTokens(task);
 		cost += task.usage?.cost ?? 0;
 	}
 	return { tools, turns, tokens, cost };
@@ -190,15 +188,15 @@ function renderStatusCard(
 	expanded: boolean,
 	finalText?: string,
 ): Text {
-	const done = status.tasks.filter((task) => task.state === "complete" || task.state === "failed").length;
-	const failed = status.tasks.filter((task) => task.state === "failed").length;
-	const running = status.tasks.filter((task) => task.state === "running").length;
-	const queued = status.tasks.filter((task) => task.state === "queued").length;
+	const done = status.subagents.filter((task) => task.state === "complete" || task.state === "failed").length;
+	const failed = status.subagents.filter((task) => task.state === "failed").length;
+	const running = status.subagents.filter((task) => task.state === "running").length;
+	const queued = status.subagents.filter((task) => task.state === "queued").length;
 	const elapsed = duration((status.completedAt ?? Date.now()) - status.startedAt);
 	const usage = summarizeUsage(status);
 	const stateGlyph = status.state === "complete" ? theme.fg("success", "✓") : status.state === "failed" ? theme.fg("error", "✗") : theme.fg("accent", "◐");
 	const stats = [
-		`${done}/${status.tasks.length}`,
+		`${done}/${status.subagents.length}`,
 		running ? `${running} running` : "",
 		queued ? `${queued} queued` : "",
 		failed ? `${failed} failed` : "",
@@ -211,10 +209,10 @@ function renderStatusCard(
 	const lines = [`${stateGlyph} ${theme.fg("toolTitle", theme.bold("subagents"))} ${theme.fg("dim", `· ${status.state} · ${stats}`)}`];
 	if (!expanded && status.state === "running") lines.push(theme.fg("accent", "  Press Ctrl+O for details"));
 
-	for (const task of status.tasks) {
+	for (const task of status.subagents) {
 		const label = `${task.index + 1}. ${task.name}`;
-		const tokenCount = taskTokens(task);
-		const taskStats = [
+		const tokenCount = subagentTokens(task);
+		const subagentStats = [
 			task.state,
 			expanded && task.context ? `context ${task.context}` : "",
 			expanded && task.model ? `model ${task.model}` : "",
@@ -223,9 +221,9 @@ function renderStatusCard(
 			task.usage?.turns ? `${task.usage.turns} turns` : "",
 			tokenCount ? `${compactNumber(tokenCount)} tok` : "",
 			task.usage?.cost ? `$${task.usage.cost.toFixed(4)}` : "",
-			taskRuntime(task),
+			subagentRuntime(task),
 		].filter(Boolean).join(" · ");
-		lines.push(`  ${taskGlyph(task.state, theme)} ${theme.bold(label)} ${theme.fg("dim", `· ${taskStats}`)}`);
+		lines.push(`  ${subagentGlyph(task.state, theme)} ${theme.bold(label)} ${theme.fg("dim", `· ${subagentStats}`)}`);
 
 		if (task.state === "failed" && task.error) lines.push(theme.fg("error", `     ${truncateText(task.error.split("\n", 1)[0], 120)}`));
 		else if (task.warning) lines.push(theme.fg("warning", `     warning: ${truncateText(task.warning.split("\n", 1)[0], 110)}`));
@@ -235,7 +233,7 @@ function renderStatusCard(
 		if (expanded) {
 			for (const tool of task.recentTools?.slice(-3, -1) ?? []) lines.push(theme.fg("dim", `     ${truncateText(`tool: ${tool.tool}${tool.args ? ` ${tool.args}` : ""}`)}`));
 		}
-		for (const line of taskOutputLines(task, expanded ? 5 : 2)) lines.push(theme.fg("dim", `     ${line}`));
+		for (const line of subagentOutputLines(task, expanded ? 5 : 2)) lines.push(theme.fg("dim", `     ${line}`));
 		if (expanded) {
 			if (task.outputFile) lines.push(theme.fg("dim", `     output: ${compactPath(task.outputFile)}`));
 			if (task.stdoutFile) lines.push(theme.fg("dim", `     jsonl: ${compactPath(task.stdoutFile)}`));
@@ -249,7 +247,7 @@ function renderStatusCard(
 function statusFromDetails(details: unknown): { status: RunStatus; dir?: string } | undefined {
 	if (!details || typeof details !== "object") return undefined;
 	const record = details as { status?: RunStatus; dir?: string };
-	if (record.status?.tasks) return { status: record.status, dir: record.dir };
+	if (record.status?.subagents) return { status: record.status, dir: record.dir };
 	return undefined;
 }
 
@@ -277,7 +275,7 @@ async function runForeground(
 		const statusText = formatStatus(run.dir);
 		if (statusText === lastStatusText) return;
 		lastStatusText = statusText;
-		onUpdate?.({ content: [{ type: "text", text: `Subagent run ${run.id} ${status.state} (${status.tasks.filter((task) => task.state === "complete" || task.state === "failed").length}/${status.tasks.length}).` }], details: { ...run, status } });
+		onUpdate?.({ content: [{ type: "text", text: `Subagent run ${run.id} ${status.state} (${status.subagents.filter((task) => task.state === "complete" || task.state === "failed").length}/${status.subagents.length}).` }], details: { ...run, status } });
 	};
 	const { status, resultText } = await runSubagents(run.config, { signal, onUpdate: emitUpdate });
 	return {
@@ -321,7 +319,7 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 		label: "Subagent",
 		description: [
 			"Launch foreground or async/background child Pi sessions for orchestration fanout.",
-			"No predefined agents: pass task plus optional appendSystemPrompt/model/thinking/tools/cwd/context.",
+			"Pass subagents[] plus optional appendSystemPrompt/model/thinking/tools/cwd/context defaults.",
 			"The extension adds no default child role or safety prompt; the orchestrator must define instructions and tool access explicitly.",
 			"Default is foreground/blocking; set async:true for background execution.",
 			"For background runs, default notify is TUI completion notification; set notify:'followUp' to wake the parent agent.",
@@ -346,7 +344,7 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 					return {
 						content: [{
 							type: "text",
-							text: `Started subagent run ${run.id} (${run.count} task${run.count === 1 ? "" : "s"}).\nStatus: subagent({ action: "status", id: "${run.id}" })\nDir: ${run.dir}`,
+							text: `Started subagent run ${run.id} (${run.count} subagent${run.count === 1 ? "" : "s"}).\nStatus: subagent({ action: "status", id: "${run.id}" })\nDir: ${run.dir}`,
 						}],
 						details: run,
 					};
@@ -365,9 +363,9 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 				return new Text(`${theme.fg("toolTitle", theme.bold("subagent "))}status ${(args as SubagentParams).id ?? ""}`, 0, 0);
 			}
 			const params = args as SubagentParams;
-			const count = params.tasks?.length ?? 1;
+			const count = params.subagents?.length ?? 0;
 			const mode = params.async === true ? "async" : "foreground";
-			return new Text(`${theme.fg("toolTitle", theme.bold("subagent "))}${mode} ${theme.fg("accent", String(count))} task${count === 1 ? "" : "s"}`, 0, 0);
+			return new Text(`${theme.fg("toolTitle", theme.bold("subagent "))}${mode} ${theme.fg("accent", String(count))} subagent${count === 1 ? "" : "s"}`, 0, 0);
 		},
 		renderResult(result, options, theme) {
 			const rendered = statusFromDetails(result.details);

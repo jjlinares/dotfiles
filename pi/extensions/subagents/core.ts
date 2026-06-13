@@ -7,7 +7,7 @@ export type ContextMode = "fresh" | "fork";
 export type NotifyMode = "tui" | "followUp" | "none";
 export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
 
-export type TaskInput = {
+export type SubagentInput = {
 	name?: string;
 	task: string;
 	appendSystemPrompt?: string;
@@ -21,10 +21,8 @@ export type TaskInput = {
 export type SubagentParams = {
 	action?: "status";
 	id?: string;
-	task?: string;
-	name?: string;
 	appendSystemPrompt?: string;
-	tasks?: TaskInput[];
+	subagents?: SubagentInput[];
 	context?: ContextMode;
 	model?: string;
 	thinking?: ThinkingLevel;
@@ -46,7 +44,7 @@ export type RunStatus = {
 	updatedAt: number;
 	completedAt?: number;
 	error?: string;
-	tasks: Array<{
+	subagents: Array<{
 		id: string;
 		index: number;
 		name: string;
@@ -77,7 +75,7 @@ export type RunStatus = {
 	}>;
 };
 
-export type PlannedTask = Required<Pick<TaskInput, "task" | "context">> & {
+export type PlannedSubagent = Required<Pick<SubagentInput, "task" | "context">> & {
 	id: string;
 	name: string;
 	appendSystemPrompt?: string;
@@ -97,7 +95,7 @@ export type RunConfig = {
 	timeoutMs?: number;
 	includeJsonl: boolean;
 	piScript?: string;
-	tasks: PlannedTask[];
+	subagents: PlannedSubagent[];
 };
 
 function sanitizeTempScopeSegment(value: string): string {
@@ -171,22 +169,11 @@ export function findRunDir(id?: string, root = RUN_ROOT): string | undefined {
 	return dirs.find((dir) => path.basename(dir) === id) ?? dirs.find((dir) => path.basename(dir).startsWith(id));
 }
 
-export function resolveTasks(params: SubagentParams): TaskInput[] {
-	const hasTasks = (params.tasks?.length ?? 0) > 0;
-	const hasSingle = Boolean(params.task);
-	if (Number(hasTasks) + Number(hasSingle) !== 1) {
-		throw new Error("Provide exactly one execution mode: task or tasks[].");
+export function resolveSubagents(params: SubagentParams): SubagentInput[] {
+	if ((params.subagents?.length ?? 0) === 0) {
+		throw new Error("Provide at least one subagent in subagents[].");
 	}
-	return hasTasks ? params.tasks! : [{
-		name: params.name,
-		task: params.task!,
-		appendSystemPrompt: params.appendSystemPrompt,
-		context: params.context,
-		model: params.model,
-		thinking: params.thinking,
-		tools: params.tools,
-		cwd: params.cwd,
-	}];
+	return params.subagents!;
 }
 
 export function buildRunConfig(input: {
@@ -200,22 +187,22 @@ export function buildRunConfig(input: {
 	const cwd = path.resolve(ctxCwd, params.cwd ?? ".");
 	const topContext = params.context ?? "fresh";
 	const forkSessionForIndex = input.forkSessionForIndex ?? (() => undefined);
-	const tasks = resolveTasks(params).map((task, index): PlannedTask => {
-		const context = task.context ?? topContext;
-		const appendSystemPrompt = task.appendSystemPrompt ?? params.appendSystemPrompt;
-		const model = task.model ?? params.model;
-		const thinking = task.thinking ?? params.thinking ?? DEFAULT_THINKING;
-		const tools = task.tools ?? params.tools;
+	const subagents = resolveSubagents(params).map((subagent, index): PlannedSubagent => {
+		const context = subagent.context ?? topContext;
+		const appendSystemPrompt = subagent.appendSystemPrompt ?? params.appendSystemPrompt;
+		const model = subagent.model ?? params.model;
+		const thinking = subagent.thinking ?? params.thinking ?? DEFAULT_THINKING;
+		const tools = subagent.tools ?? params.tools;
 		return {
 			id: `${runId}-${index}`,
-			name: task.name ?? safeName(appendSystemPrompt?.split("\n", 1)[0], `task-${index + 1}`),
-			task: task.task,
+			name: subagent.name ?? safeName(appendSystemPrompt?.split("\n", 1)[0], `subagent-${index + 1}`),
+			task: subagent.task,
 			...(appendSystemPrompt ? { appendSystemPrompt } : {}),
 			context,
 			...(model ? { model } : {}),
 			...(thinking ? { thinking } : {}),
 			...(tools !== undefined ? { tools } : {}),
-			cwd: path.resolve(cwd, task.cwd ?? "."),
+			cwd: path.resolve(cwd, subagent.cwd ?? "."),
 			...(context === "fork" ? { sessionFile: forkSessionForIndex(index) } : {}),
 		};
 	});
@@ -227,13 +214,13 @@ export function buildRunConfig(input: {
 		concurrency: params.concurrency ?? DEFAULT_CONCURRENCY,
 		...(params.timeoutMs ? { timeoutMs: params.timeoutMs } : {}),
 		includeJsonl: params.includeJsonl === true,
-		tasks,
+		subagents,
 	};
 }
 
 export function needsFork(params: SubagentParams): boolean {
 	const topContext = params.context ?? "fresh";
-	return resolveTasks(params).some((task) => (task.context ?? topContext) === "fork");
+	return resolveSubagents(params).some((subagent) => (subagent.context ?? topContext) === "fork");
 }
 
 export function formatDuration(ms: number): string {
@@ -246,9 +233,9 @@ export function formatDuration(ms: number): string {
 
 export function formatRunLine(status: RunStatus, now = Date.now()): string {
 	const icon = status.state === "complete" ? "✓" : status.state === "failed" ? "✗" : "…";
-	const done = status.tasks.filter((task) => task.state === "complete" || task.state === "failed").length;
+	const done = status.subagents.filter((task) => task.state === "complete" || task.state === "failed").length;
 	const age = formatDuration((status.completedAt ?? now) - status.startedAt);
-	return `${icon} ${status.id} ${status.state} ${done}/${status.tasks.length} ${age}`;
+	return `${icon} ${status.id} ${status.state} ${done}/${status.subagents.length} ${age}`;
 }
 
 export function formatStatus(runDir?: string, root = RUN_ROOT, now = Date.now()): string {
@@ -264,7 +251,7 @@ export function formatStatus(runDir?: string, root = RUN_ROOT, now = Date.now())
 	const status = readJson<RunStatus>(statusPath(runDir));
 	if (!status) return `No status found for ${path.basename(runDir)}.`;
 	const lines = [formatRunLine(status, now), `dir: ${runDir}`];
-	for (const task of status.tasks) {
+	for (const task of status.subagents) {
 		lines.push(`\n## ${task.name} — ${task.state}`);
 		if (task.preview) lines.push(task.preview);
 		if (task.outputFile) lines.push(`output: ${task.outputFile}`);

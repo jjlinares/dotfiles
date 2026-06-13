@@ -11,7 +11,7 @@ import {
   needsFork,
   notifyCompletion,
   randomId,
-  resolveTasks,
+  resolveSubagents,
   statusPath,
 } from "./core.ts";
 
@@ -19,13 +19,13 @@ test("randomId returns a 64-bit hex run id", () => {
   assert.match(randomId(), /^[0-9a-f]{16}$/);
 });
 
-test("resolveTasks rejects missing or mixed execution modes", () => {
-  assert.throws(() => resolveTasks({}), /exactly one/);
-  assert.throws(() => resolveTasks({ task: "one", tasks: [{ task: "two" }] }), /exactly one/);
-  assert.deepEqual(resolveTasks({ task: "one", name: "solo" }), [{ name: "solo", task: "one", context: undefined, cwd: undefined, model: undefined, thinking: undefined, appendSystemPrompt: undefined, tools: undefined }]);
+test("resolveSubagents requires a non-empty subagents array", () => {
+  assert.throws(() => resolveSubagents({}), /at least one subagent/);
+  assert.throws(() => resolveSubagents({ subagents: [] }), /at least one subagent/);
+  assert.deepEqual(resolveSubagents({ subagents: [{ name: "solo", task: "one" }] }), [{ name: "solo", task: "one" }]);
 });
 
-test("buildRunConfig applies defaults and task overrides", () => {
+test("buildRunConfig applies defaults and subagent overrides", () => {
   const config = buildRunConfig({
     params: {
       context: "fresh",
@@ -37,7 +37,7 @@ test("buildRunConfig applies defaults and task overrides", () => {
       notify: "followUp",
       timeoutMs: 1234,
       includeJsonl: true,
-      tasks: [
+      subagents: [
         { task: "a" },
         { name: "custom", task: "b", appendSystemPrompt: "Special", model: "model-b", thinking: "low", tools: false, cwd: "pkg" },
       ],
@@ -52,35 +52,35 @@ test("buildRunConfig applies defaults and task overrides", () => {
   assert.equal(config.concurrency, 4);
   assert.equal(config.timeoutMs, 1234);
   assert.equal(config.includeJsonl, true);
-  assert.equal(config.tasks[0].name, "Default-reviewer");
-  assert.equal(config.tasks[0].appendSystemPrompt, "Default reviewer");
-  assert.equal(config.tasks[0].model, "model-a");
-  assert.equal(config.tasks[0].thinking, "high");
-  assert.equal(config.tasks[0].tools, "read,bash");
-  assert.equal(config.tasks[1].name, "custom");
-  assert.equal(config.tasks[1].appendSystemPrompt, "Special");
-  assert.equal(config.tasks[1].model, "model-b");
-  assert.equal(config.tasks[1].thinking, "low");
-  assert.equal(config.tasks[1].tools, false);
-  assert.equal(config.tasks[1].cwd, "/work/repo/pkg");
+  assert.equal(config.subagents[0].name, "Default-reviewer");
+  assert.equal(config.subagents[0].appendSystemPrompt, "Default reviewer");
+  assert.equal(config.subagents[0].model, "model-a");
+  assert.equal(config.subagents[0].thinking, "high");
+  assert.equal(config.subagents[0].tools, "read,bash");
+  assert.equal(config.subagents[1].name, "custom");
+  assert.equal(config.subagents[1].appendSystemPrompt, "Special");
+  assert.equal(config.subagents[1].model, "model-b");
+  assert.equal(config.subagents[1].thinking, "low");
+  assert.equal(config.subagents[1].tools, false);
+  assert.equal(config.subagents[1].cwd, "/work/repo/pkg");
 });
 
 test("buildRunConfig defaults thinking to medium", () => {
   const config = buildRunConfig({
-    params: { task: "inspect" },
+    params: { subagents: [{ task: "inspect" }] },
     ctxCwd: "/work",
     runId: "think",
     runDir: "/tmp/think",
   });
 
-  assert.equal(config.tasks[0].thinking, "medium");
+  assert.equal(config.subagents[0].thinking, "medium");
 });
 
-test("buildRunConfig assigns fork sessions only to forked tasks", () => {
+test("buildRunConfig assigns fork sessions only to forked subagents", () => {
   const calls = [];
   const params = {
     context: "fresh",
-    tasks: [
+    subagents: [
       { task: "fresh task" },
       { task: "fork task", context: "fork" },
     ],
@@ -98,8 +98,8 @@ test("buildRunConfig assigns fork sessions only to forked tasks", () => {
     },
   });
 
-  assert.equal(config.tasks[0].sessionFile, undefined);
-  assert.equal(config.tasks[1].sessionFile, "/sessions/1.jsonl");
+  assert.equal(config.subagents[0].sessionFile, undefined);
+  assert.equal(config.subagents[1].sessionFile, "/sessions/1.jsonl");
   assert.deepEqual(calls, [1]);
 });
 
@@ -119,12 +119,12 @@ test("findRunDir supports exact and prefix matches", async () => {
   assert.equal(findRunDir("missing", root), undefined);
 });
 
-test("formatStatus lists runs and includes task details", async () => {
+test("formatStatus lists runs and includes subagent details", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-core-test-"));
   const runDir = path.join(root, "run1");
   await fs.mkdir(runDir);
-  const stderr = path.join(runDir, "task.stderr.log");
-  const output = path.join(runDir, "task.md");
+  const stderr = path.join(runDir, "subagent.stderr.log");
+  const output = path.join(runDir, "subagent.md");
   await fs.writeFile(stderr, "warning");
   await fs.writeFile(output, "details");
   await fs.writeFile(path.join(runDir, "result.md"), "aggregate");
@@ -136,7 +136,7 @@ test("formatStatus lists runs and includes task details", async () => {
     startedAt: 1000,
     updatedAt: 2000,
     completedAt: 3000,
-    tasks: [{ id: "run1-0", index: 0, name: "review", state: "failed", preview: "bad", outputFile: output, stderrFile: stderr }],
+    subagents: [{ id: "run1-0", index: 0, name: "review", state: "failed", preview: "bad", outputFile: output, stderrFile: stderr }],
   }));
 
   assert.match(formatStatus(undefined, root, 3000), /✗ run1 failed 1\/1 2s/);
@@ -152,7 +152,7 @@ test("notifyCompletion sends TUI notification by default path", () => {
   const sent = [];
   const mode = notifyCompletion({
     notify: "tui",
-    status: { id: "abc", state: "complete", cwd: "/work", notify: "tui", startedAt: 0, updatedAt: 1, tasks: [] },
+    status: { id: "abc", state: "complete", cwd: "/work", notify: "tui", startedAt: 0, updatedAt: 1, subagents: [] },
     runDir: "/tmp/run",
     hasUI: true,
     isIdle: true,
@@ -168,7 +168,7 @@ test("notifyCompletion followUp queues when parent is busy", () => {
   const sent = [];
   const mode = notifyCompletion({
     notify: "followUp",
-    status: { id: "abc", state: "failed", cwd: "/work", notify: "followUp", startedAt: 0, updatedAt: 1, tasks: [] },
+    status: { id: "abc", state: "failed", cwd: "/work", notify: "followUp", startedAt: 0, updatedAt: 1, subagents: [] },
     runDir: "/tmp/run",
     hasUI: true,
     isIdle: false,
