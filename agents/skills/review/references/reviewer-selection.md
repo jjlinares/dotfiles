@@ -46,9 +46,9 @@ Accepted values:
 - `high`
 - `xhigh`
 
-Default to the orchestrator agent's current thinking level when the user does not specify one.
+Default to each selected reviewer profile's configured thinking level when the user does not specify one.
 
-Use higher thinking for harder analysis inside selected reviewers: caller tracing, security boundaries, architectural tradeoffs, and ambiguous spec compliance. Do not add unrelated reviewers just because the user asked for higher thinking.
+Use higher thinking as an inline subagent override for harder analysis inside selected reviewers: caller tracing, security boundaries, architectural tradeoffs, and ambiguous spec compliance. Do not add unrelated reviewers just because the user asked for higher thinking.
 
 `strict` is not a thinking level. Treat it as a review focus that selects `architecture-simplicity` and raises the maintainability bar.
 
@@ -59,18 +59,20 @@ Use higher thinking for harder analysis inside selected reviewers: caller tracin
 - Do not launch architecture after a diff is already blocked by a clear P1 unless the user requested strict review.
 - Do not re-check linter/formatter/typechecker facts unless tooling is absent or the changed code bypasses tooling.
 
-## Role brief paths
+## Reviewer profiles
 
-Load only selected files:
+Each reviewer is a `pi-subagents` profile. The profile owns the reviewer identity, trigger-facing `description`, system prompt, default thinking level, context mode, and tool defaults. The review run owns the dynamic task: target, context, protocol, allowed commands, and output handling.
 
-- `reviewers/correctness-regression.md`
-- `reviewers/spec-compliance.md`
-- `reviewers/standards-conventions.md`
-- `reviewers/security-boundary.md`
-- `reviewers/test-coverage.md`
-- `reviewers/silent-failure.md`
-- `reviewers/type-contracts.md`
-- `reviewers/architecture-simplicity.md`
-- `reviewers/performance.md`
-- `reviewers/docs-dx.md`
-- `reviewers/codebase-direction.md`
+Select only relevant profiles:
+
+- [`reviewers/correctness-regression.yaml`](reviewers/correctness-regression.yaml)
+- [`reviewers/spec-compliance.yaml`](reviewers/spec-compliance.yaml)
+- [`reviewers/standards-conventions.yaml`](reviewers/standards-conventions.yaml)
+- [`reviewers/security-boundary.yaml`](reviewers/security-boundary.yaml)
+- [`reviewers/test-coverage.yaml`](reviewers/test-coverage.yaml)
+- [`reviewers/silent-failure.yaml`](reviewers/silent-failure.yaml)
+- [`reviewers/type-contracts.yaml`](reviewers/type-contracts.yaml)
+- [`reviewers/architecture-simplicity.yaml`](reviewers/architecture-simplicity.yaml)
+- [`reviewers/performance.yaml`](reviewers/performance.yaml)
+- [`reviewers/docs-dx.yaml`](reviewers/docs-dx.yaml)
+- [`reviewers/codebase-direction.yaml`](reviewers/codebase-direction.yaml)

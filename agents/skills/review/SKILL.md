@@ -21,10 +21,10 @@ The first output adapter is **plans**. Future adapters may publish PR comments, 
 ## Core Contract
 
 - Default to review-only. Never edit source code, even when the user says "review and fix".
-- When asked to fix, complete the review, write plans for accepted findings, and recommend handing those plans to an implementation skill or executor.
+- When asked to fix, complete the review, write plans for accepted findings, and recommend handing those plans to an implementation skill like `tdd` or executor.
 - Allow writes only under `.agents/reviews/<run-id>/` for manifests, reports, adjudication notes, and plans.
 - Resolve the target before launching reviewers. Never let subagents infer scope.
-- Keep subagents read-only by instruction only, do not restrict their use of tools. `bash` allows them to quickly explore the codebase, run tests, git, etc.
+- Review subagents are read-only by instruction, not sandbox. Restrict tools only on explicit user request or a concrete target-specific reason.
 - Treat every subagent finding as untrusted. Subagents do not vote; agreement between subagents is not evidence. Accept a finding only after independently verifying the code path, target provenance, trigger, and impact.
 - For diff targets, accept only issues introduced or exposed by the target.
 - For `codebase` target, accept pre-existing issues only when evidence, impact, and leverage are clear.
@@ -38,9 +38,7 @@ The first output adapter is **plans**. Future adapters may publish PR comments, 
 
 Identify the exact target: `local`, `commit <ref>`, `branch [base]`, `pr [number|url]`, `since <ref>`, or `codebase`.
 
-Use `references/target-selection.md`. Ask one short question when ambiguous.
-
-For commit, branch, and PR reviews, prefer a pinned clean checkout/worktree. For local reviews, use the live working tree because staged, unstaged, and untracked files matter.
+Use [`references/target-selection.md`](references/target-selection.md). Ask concise questions when ambiguous.
 
 ### 2. Create run directory
 
@@ -73,23 +71,33 @@ Write the useful facts into `context.md`: commands, conventions, spec sources, d
 
 ### 4. Select reviewers
 
-Use `references/reviewer-selection.md`.
+Use [`references/reviewer-selection.md`](references/reviewer-selection.md).
+
+Each reviewer is a YAML subagent profile under [`references/reviewers/`](references/reviewers/) as `<role>.yaml`. The profile owns reviewer identity, description, system prompt, default thinking level, context mode, and tool defaults.
 
 Always run `correctness-regression` unless the target is documentation-only. Add conditional reviewers for security, tests, standards, spec, silent failure, type contracts, architecture, performance, and docs/DX.
 
 Run focused reviewers only. A reviewer with no relevant trigger creates noise.
 
+Treat user-specified focus areas as reviewer-selection constraints. Examples: `security`, `tests`, `performance`, `docs`, `architecture`, or `strict`.
+
+- If the user asks for a thinking level, apply it as an inline override to selected reviewer profiles.
+- Do not widen scope just because a focus or thinking level was requested.
+- If the requested focus is irrelevant to the target, ask whether to run it anyway.
+
 ### 5. Launch subagents
 
-Use `references/subagent-protocol.md` and `references/orchestration.md`.
+Use [`references/subagent-protocol.md`](references/subagent-protocol.md) and [`references/orchestration.md`](references/orchestration.md).
 
-Give each subagent exactly one role, the target manifest, the context manifest, the role brief, and the output format. Require candidate findings only. Require line references and confidence. Require `No findings.` when clean.
+Launch each selected reviewer with `subagent({ subagents: [{ profile, task }] })`. Override profile defaults only on explicit user request or a concrete target-specific reason.
 
-If parallel subagents are unavailable, run the same reviewer briefs sequentially in the parent and record that no external subagents were launched.
+Give each subagent exactly one reviewer profile plus a dynamic task containing the target manifest, context manifest, protocol path, and output requirements. Require candidate findings only. Require line references and confidence. Require `No findings.` when clean.
+
+If the `subagent` tool is unavailable, exit the review and tell the user that profile-backed subagents are required.
 
 ### 6. Adjudicate
 
-Use `references/finding-bar.md`.
+Use [`references/finding-bar.md`](references/finding-bar.md).
 
 For every candidate:
 
@@ -105,7 +113,7 @@ Record accepted and rejected findings in `findings.md`. Rejection reasons matter
 
 ### 7. Write implementation plans
 
-Write one plan per accepted finding under `.agents/reviews/<run-id>/plans/` using `references/plan-template.md`.
+Write one plan per accepted finding under `.agents/reviews/<run-id>/plans/` using [`references/plan-template.md`](references/plan-template.md).
 
 Treat acceptance as a commitment to plan. Plans must be self-contained for a fresh executor: evidence, current behavior, target files, exact steps, tests, verification commands, non-goals, and stop conditions.
 
@@ -143,20 +151,12 @@ Final response shape:
 
 If no findings qualify, say `No actionable findings accepted.` Include residual risk.
 
-## Modes
-
-- `low`, `medium`, `high`, `xhigh` — subagent thinking level only. Default to the orchestrator agent's current thinking level.
-- `strict` / `architecture` — include architecture-simplicity with a higher maintainability bar.
-- `security`, `tests`, `performance`, `docs` — focused review plus correctness only when useful.
-- `codebase` — improvement audit mode; pre-existing findings allowed when high-leverage.
-- `plan-only` — skip final report detail and write plans for accepted findings.
-
 ## Resources
 
-- `references/target-selection.md` — target resolution and run manifest rules.
-- `references/reviewer-selection.md` — reviewer matrix and role triggers.
-- `references/subagent-protocol.md` — prompt shape and report format.
-- `references/orchestration.md` — pi/tmux launch patterns and fallback.
-- `references/finding-bar.md` — acceptance, rejection, severity, adjudication.
-- `references/plan-template.md` — implementation plan format.
-- `references/reviewers/*.md` — role briefs loaded only when selected.
+- [`references/target-selection.md`](references/target-selection.md) — target resolution and run manifest rules.
+- [`references/reviewer-selection.md`](references/reviewer-selection.md) — reviewer matrix and role triggers.
+- [`references/subagent-protocol.md`](references/subagent-protocol.md) — prompt shape and report format.
+- [`references/orchestration.md`](references/orchestration.md) — required `pi-subagents` profile launch pattern.
+- [`references/finding-bar.md`](references/finding-bar.md) — acceptance, rejection, severity, adjudication.
+- [`references/plan-template.md`](references/plan-template.md) — implementation plan format.
+- [`references/reviewers/*.yaml`](references/reviewers/) — reviewer profiles loaded only when selected.

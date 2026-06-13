@@ -1,6 +1,6 @@
 # Orchestration
 
-Use subagents when available. Use `pi` plus `tmux` when parallelism helps. If subagents are unavailable, run the same reviewer briefs sequentially in the parent and record that fallback.
+Use `pi-subagents` as the required launch mechanism. If the `subagent` tool is unavailable, exit the review and tell the user that profile-backed subagents are required.
 
 ## Run directory
 
@@ -10,88 +10,77 @@ mkdir -p "$run_dir/reports" "$run_dir/plans"
 touch "$run_dir/findings.md" "$run_dir/report.md"
 repo="$(git rev-parse --show-toplevel)"
 run_abs="$repo/$run_dir"
+skill_dir="$(realpath ~/.agents/skills/review)"
 ```
 
 `target.md` must record `review_cwd`. For pinned targets this may be a detached worktree. For local targets it is the current repo.
 
-## Sequential launch
+## Primary launch: `subagent` profiles
 
-Use when one or two reviewers are selected, or when tmux is not useful.
+Each selected reviewer maps to a YAML profile under:
 
-```bash
-role="correctness-regression"
-(
-  cd "$review_cwd"
-  pi -p --no-session --no-skills --no-context-files --tools read,grep,find,ls,bash <<PROMPT > "$run_abs/reports/$role.md" 2>&1
-# Role: $role
-
-Review cwd: $review_cwd
-Target manifest: $run_abs/target.md
-Review context: $run_abs/context.md
-Reviewer brief: <absolute-skill-dir>/references/reviewers/$role.md
-
-Use only inspection commands. Do not edit, install, format, generate, commit, push, or mutate git state.
-
-<insert subagent protocol output format>
-<insert role brief or tell agent to read the role brief path>
-PROMPT
-)
+```text
+<skill_dir>/references/reviewers/<role>.yaml
 ```
 
-## Parallel tmux launch
+Launch reviewers with profile-backed subagents. Do not pass reviewer identity as top-level settings. Let profile defaults apply; use inline subagent fields only for intentional one-off overrides.
 
-Use for independent reviewers.
+```ts
+subagent({
+  cwd: review_cwd,
+  concurrency: Math.min(selectedReviewers.length, 4),
+  subagents: selectedReviewers.map((role) => ({
+    profile: `${skill_dir}/references/reviewers/${role}.yaml`,
+    task: `# Role: ${role}
 
-```bash
-session="review-$(date +%H%M%S)"
-tmux new-session -d -s "$session" -c "$review_cwd"
-tmux set-option -t "$session" remain-on-exit on
+Review the pinned target using your loaded reviewer profile only.
+
+Inputs:
+- Review cwd: ${review_cwd}
+- Target manifest: ${run_abs}/target.md
+- Review context: ${run_abs}/context.md
+- Protocol: ${skill_dir}/references/subagent-protocol.md
+- Reviewer profile: ${skill_dir}/references/reviewers/${role}.yaml already loaded as your system prompt
+
+Task:
+- Read target.md, context.md, and the protocol.
+- Inspect the diff or codebase scope only for your loaded reviewer role.
+- Return candidate findings only. Do not fix. Do not write plans.
+- Cite changed files and lines when possible.
+- For diff targets, report only issues introduced or exposed by the target.
+- For codebase target, report only high-leverage issues with concrete evidence.
+- Use the exact markdown return shape from the protocol.
+- If clean, write: No findings.`
+  }))
+})
 ```
 
-For each role:
+If the user requested a thinking level, apply it as an inline override on each selected subagent, not as a top-level setting:
 
-```bash
-role="security-boundary"
-tmux new-window -t "$session:" -n "$role" -c "$review_cwd" "pi -p --no-session --no-skills --no-context-files --tools read,grep,find,ls,bash <<'PROMPT' > '$run_abs/reports/$role.md' 2>&1
-# Role: security-boundary
-
-Review cwd: $review_cwd
-Target manifest: $run_abs/target.md
-Review context: $run_abs/context.md
-Reviewer brief: <absolute-skill-dir>/references/reviewers/security-boundary.md
-
-Use only inspection commands. Do not edit, install, format, generate, commit, push, or mutate git state.
-
-<insert subagent protocol output format>
-<insert role brief or tell agent to read the role brief path>
-PROMPT"
+```ts
+{ profile, task, thinking: "xhigh" }
 ```
 
-Monitor:
+## Saving reports
 
-```bash
-tmux list-windows -t "$session"
+The `subagent` tool writes aggregate runtime artifacts under `/tmp/pi-subagents-*/runs/<id>/`. After it returns, copy each child output into:
+
+```text
+.agents/reviews/<run-id>/reports/<role>.md
 ```
 
-When all windows exit, read `reports/*.md`.
+Do not ask subagents to write these files themselves. Review subagents are read-only.
 
 ## Safety rules
 
 - Start reviewers only after `target.md` and `context.md` are complete.
 - Do not edit source while reviewers are running.
-- Do not enable `edit` or `write` for subagents.
+- Do not enable `edit` or `write` in reviewer profiles.
 - Do not apply fixes in review worktrees.
 - Do not auto-remove worktrees; record cleanup commands for the user.
 - If a report contains tool/launch errors, retry once or mark the role `not run`.
 - If a reviewer reports plans or patches instead of findings, ignore those sections and adjudicate only concrete findings.
 
-## Parent fallback
+## Unavailable subagent tool
 
-When no subagent mechanism exists:
-
-1. Read each selected role brief.
-2. Review the target once per role, clearing assumptions between passes.
-3. Save notes in the matching `reports/<role>.md` file.
-4. Mark `subagent_mode: parent-fallback` in `context.md`.
-
-Do not pretend parallel independent review occurred.
+Do not fall back to direct Pi, tmux, or parent-only simulated subagents. Exit the review and tell the user that profile-backed subagents are required.

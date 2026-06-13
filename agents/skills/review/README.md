@@ -21,35 +21,31 @@ Subagents generate leads. The orchestrator decides what is real.
 
 ## File map
 
-```text
-review/
-  SKILL.md
-  references/
-    target-selection.md
-    reviewer-selection.md
-    subagent-protocol.md
-    orchestration.md
-    finding-bar.md
-    plan-template.md
-    reviewers/
-      correctness-regression.md
-      security-boundary.md
-      test-coverage.md
-      standards-conventions.md
-      spec-compliance.md
-      silent-failure.md
-      type-contracts.md
-      architecture-simplicity.md
-      performance.md
-      docs-dx.md
-      codebase-direction.md
-```
+- [`SKILL.md`](SKILL.md)
+- [`references/target-selection.md`](references/target-selection.md)
+- [`references/reviewer-selection.md`](references/reviewer-selection.md)
+- [`references/subagent-protocol.md`](references/subagent-protocol.md)
+- [`references/orchestration.md`](references/orchestration.md)
+- [`references/finding-bar.md`](references/finding-bar.md)
+- [`references/plan-template.md`](references/plan-template.md)
+- [`references/reviewers/`](references/reviewers/)
+  - [`correctness-regression.yaml`](references/reviewers/correctness-regression.yaml)
+  - [`security-boundary.yaml`](references/reviewers/security-boundary.yaml)
+  - [`test-coverage.yaml`](references/reviewers/test-coverage.yaml)
+  - [`standards-conventions.yaml`](references/reviewers/standards-conventions.yaml)
+  - [`spec-compliance.yaml`](references/reviewers/spec-compliance.yaml)
+  - [`silent-failure.yaml`](references/reviewers/silent-failure.yaml)
+  - [`type-contracts.yaml`](references/reviewers/type-contracts.yaml)
+  - [`architecture-simplicity.yaml`](references/reviewers/architecture-simplicity.yaml)
+  - [`performance.yaml`](references/reviewers/performance.yaml)
+  - [`docs-dx.yaml`](references/reviewers/docs-dx.yaml)
+  - [`codebase-direction.yaml`](references/reviewers/codebase-direction.yaml)
 
 ## Sections
 
 ### 1. Contract / target semantics
 
-Lives mostly in `SKILL.md`.
+Lives mostly in [`SKILL.md`](SKILL.md).
 
 Defines what the skill is allowed to do:
 
@@ -64,7 +60,7 @@ Improve this only when the identity of the skill changes.
 
 ### 2. Target selection
 
-Lives in `references/target-selection.md`.
+Lives in [`references/target-selection.md`](references/target-selection.md).
 
 Defines supported targets:
 
@@ -81,27 +77,29 @@ Improve this when target resolution is wrong, unsafe, ambiguous, or missing a ta
 
 ### 3. Reviewer matrix
 
-Lives in `references/reviewer-selection.md` and `references/reviewers/*.md`.
+Lives in [`references/reviewer-selection.md`](references/reviewer-selection.md) and [`references/reviewers/*.yaml`](references/reviewers/).
 
-Defines which reviewer lenses exist and when to use them.
+Defines which reviewer profiles exist and when to use them.
 
-The orchestrator chooses reviewers by default. User-requested reviewers/focus areas override automation.
+Each reviewer is a YAML `pi-subagents` profile.
 
-Improve this by changing one reviewer brief or one trigger rule. Do not expand the default reviewer set casually; more reviewers often means more noise.
+The orchestrator chooses reviewers by default. User-requested focus areas constrain reviewer selection.
+
+Improve this by changing one reviewer profile, one trigger rule, or the user-focus rules in [`SKILL.md`](SKILL.md). Do not expand the default reviewer set casually; more reviewers often means more noise.
 
 ### 4. Subagent protocol / orchestration
 
-Lives in `references/subagent-protocol.md` and `references/orchestration.md`.
+Lives in [`references/subagent-protocol.md`](references/subagent-protocol.md) and [`references/orchestration.md`](references/orchestration.md).
 
 Defines how review subagents are launched, what they receive, and what output shape they return.
 
-This section is currently deferred because orchestration should likely lean on `pi-subagents` directly instead of hand-written `pi`/`tmux` patterns.
+This section uses `pi-subagents` profiles as the required runtime mechanism. If the `subagent` tool is unavailable, the review exits and tells the user.
 
-Improve this when deciding the real runtime mechanism: `subagent(...)`, async behavior, thinking level propagation, output files, and fallback behavior.
+Improve this when changing `subagent(...)` launch shape, profile behavior, thinking overrides, output files, or unavailable-tool behavior.
 
 ### 5. Finding bar / adjudication
 
-Lives in `references/finding-bar.md`.
+Lives in [`references/finding-bar.md`](references/finding-bar.md).
 
 Defines what counts as an accepted finding, what gets rejected, severity levels, and adjudication steps.
 
@@ -109,7 +107,7 @@ This is the anti-garbage filter. Improve this when reviews are too noisy, too ti
 
 ### 6. Plan template
 
-Lives in `references/plan-template.md`.
+Lives in [`references/plan-template.md`](references/plan-template.md).
 
 Defines the implementation-handoff plan written for each accepted issue.
 
@@ -128,7 +126,7 @@ Improve this when plans are hard to execute, too verbose, not issue-like enough,
 
 ### 7. Final report
 
-Lives in `SKILL.md` report section.
+Lives in [`SKILL.md`](SKILL.md) report section.
 
 Defines the user-facing summary after review:
 
@@ -155,10 +153,10 @@ When improving the skill:
 
 1. Identify which section failed.
 2. Patch that file only.
-3. Avoid duplicating instructions across `SKILL.md` and references.
-4. Keep `SKILL.md` lean; move details into references.
+3. Avoid duplicating instructions across [`SKILL.md`](SKILL.md) and references.
+4. Keep [`SKILL.md`](SKILL.md) lean; move details into references.
 5. Prefer stricter evidence requirements over more reviewer roles.
 
-## Current known gap
+## Current note
 
-Section 4 is intentionally unresolved. `pi-subagents` likely should be the primary orchestration mechanism. Do not polish the old tmux-style orchestration too much before deciding that.
+Reviewer YAML profiles are the source of truth for launches.

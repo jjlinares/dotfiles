@@ -1,13 +1,15 @@
 # Subagent Protocol
 
-Give each subagent exactly one role. Subagents return candidate findings only. The orchestrator accepts or rejects.
+Give each subagent exactly one reviewer profile. Subagents return candidate findings only. The orchestrator accepts or rejects.
+
+Reviewer profiles own stable identity: role name, description, system prompt, thinking default, context mode, and tool defaults. Dynamic tasks own run-specific facts: target, checkout, context, protocol, allowed commands, and output handling.
 
 ## Prompt skeleton
 
 ```markdown
 # Role: <role-name>
 
-Review the pinned target for this role only.
+Review the pinned target using your loaded reviewer profile only.
 
 Read-only constraints:
 - Do not edit files, even if edit/write tools are available.
@@ -20,11 +22,12 @@ Inputs:
 - Review cwd: <checkout/worktree path>
 - Target manifest: <run-dir>/target.md
 - Review context: <run-dir>/context.md
-- Reviewer brief: <skill-dir>/references/reviewers/<role>.md
+- Protocol: <skill-dir>/references/subagent-protocol.md
+- Reviewer profile: <skill-dir>/references/reviewers/<role>.yaml already loaded as your system prompt
 
 Task:
-- Read target.md, context.md, and the reviewer brief.
-- Inspect the diff or codebase scope only for this role.
+- Read target.md, context.md, and this protocol.
+- Inspect the diff or codebase scope only for your loaded reviewer role.
 - Return candidate findings. Do not fix. Do not write plans.
 - Cite changed files and lines when possible.
 - For diff targets, report only issues introduced or exposed by the target.
@@ -83,15 +86,15 @@ Always include:
 
 - absolute path to run directory
 - absolute path to review checkout
-- exact role brief path
+- exact reviewer profile path
 - exact target commands in `target.md`
 
 ## Output handling
 
-Store raw subagent output at:
+After the `subagent` run returns, store each raw subagent output at:
 
 ```text
 .agents/reviews/<run-id>/reports/<role>.md
 ```
 
-If a subagent fails, retry once with a smaller prompt. If it fails again, mark the role `not run` in `report.md` and include residual risk.
+Do not ask subagents to write report files themselves. They are read-only. If a subagent fails, retry once with a smaller prompt. If it fails again, mark the role `not run` in `report.md` and include residual risk.
