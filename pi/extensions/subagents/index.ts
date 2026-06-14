@@ -144,6 +144,9 @@ function truncateText(value: string, max = Math.max(80, (process.stdout.columns 
 	return value.length > max ? `${value.slice(0, Math.max(0, max - 3))}...` : value;
 }
 
+const COMPACT_SUBAGENT_DETAIL_LINES = 3;
+const EXPANDED_SUBAGENT_DETAIL_LINES = 6;
+
 function subagentOutputLines(task: RunStatus["subagents"][number], limit: number): string[] {
 	const recent = (task.recentOutput ?? []).filter((line) => line.trim());
 	if (recent.length > 0) return recent.slice(-limit).map((line) => truncateText(line.trim(), 120));
@@ -159,6 +162,36 @@ function latestToolLine(task: RunStatus["subagents"][number]): string | undefine
 	const tool = task.recentTools?.at(-1);
 	if (!tool) return undefined;
 	return truncateText(`tool: ${tool.tool}${tool.args ? ` ${tool.args}` : ""}`);
+}
+
+function fixedSubagentDetailLines(
+	task: RunStatus["subagents"][number],
+	theme: ExtensionContext["ui"]["theme"],
+	expanded: boolean,
+): string[] {
+	const limit = expanded ? EXPANDED_SUBAGENT_DETAIL_LINES : COMPACT_SUBAGENT_DETAIL_LINES;
+	const details: string[] = [];
+
+	if (task.state === "failed" && task.error) details.push(theme.fg("error", `     ${truncateText(task.error.split("\n", 1)[0], 120)}`));
+	else if (task.warning) details.push(theme.fg("warning", `     warning: ${truncateText(task.warning.split("\n", 1)[0], 110)}`));
+
+	const currentOrRecentTool = latestToolLine(task);
+	if (currentOrRecentTool) details.push(theme.fg("dim", `     ${currentOrRecentTool}`));
+	if (expanded) {
+		for (const tool of task.recentTools?.slice(-3, -1) ?? []) {
+			details.push(theme.fg("dim", `     ${truncateText(`tool: ${tool.tool}${tool.args ? ` ${tool.args}` : ""}`)}`));
+		}
+	}
+
+	for (const line of subagentOutputLines(task, limit)) details.push(theme.fg("dim", `     ${line}`));
+	if (expanded) {
+		if (task.outputFile) details.push(theme.fg("dim", `     output: ${compactPath(task.outputFile)}`));
+		if (task.stdoutFile) details.push(theme.fg("dim", `     jsonl: ${compactPath(task.stdoutFile)}`));
+	}
+
+	const fixed = details.slice(0, limit);
+	while (fixed.length < limit) fixed.push("");
+	return fixed;
 }
 
 function subagentGlyph(state: string, theme: ExtensionContext["ui"]["theme"]): string {
@@ -226,19 +259,7 @@ function renderStatusCard(
 		].filter(Boolean).join(" · ");
 		lines.push(`  ${subagentGlyph(task.state, theme)} ${theme.bold(label)} ${theme.fg("dim", `· ${subagentStats}`)}`);
 
-		if (task.state === "failed" && task.error) lines.push(theme.fg("error", `     ${truncateText(task.error.split("\n", 1)[0], 120)}`));
-		else if (task.warning) lines.push(theme.fg("warning", `     warning: ${truncateText(task.warning.split("\n", 1)[0], 110)}`));
-
-		const currentOrRecentTool = latestToolLine(task);
-		if (currentOrRecentTool) lines.push(theme.fg("dim", `     ${currentOrRecentTool}`));
-		if (expanded) {
-			for (const tool of task.recentTools?.slice(-3, -1) ?? []) lines.push(theme.fg("dim", `     ${truncateText(`tool: ${tool.tool}${tool.args ? ` ${tool.args}` : ""}`)}`));
-		}
-		for (const line of subagentOutputLines(task, expanded ? 5 : 2)) lines.push(theme.fg("dim", `     ${line}`));
-		if (expanded) {
-			if (task.outputFile) lines.push(theme.fg("dim", `     output: ${compactPath(task.outputFile)}`));
-			if (task.stdoutFile) lines.push(theme.fg("dim", `     jsonl: ${compactPath(task.stdoutFile)}`));
-		}
+		lines.push(...fixedSubagentDetailLines(task, theme, expanded));
 	}
 	if (expanded && runDir) lines.push("", theme.fg("dim", `Artifacts: ${compactPath(runDir)}`));
 	if (expanded && finalText && status.state !== "running") lines.push("", finalText.trim());
