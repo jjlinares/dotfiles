@@ -1,7 +1,16 @@
 ---
 name: grill-with-docs
 description: Grilling session that challenges your plan against the existing domain model, sharpens terminology, and updates documentation (context.md, ADRs) inline as decisions crystallise. Use when user wants to stress-test a plan against their project's language and documented decisions.
+allowed-tools: Bash(rg:*) Bash(git:*)
 ---
+
+<repo-docs-snapshot>
+
+Context docs: !`rg --files -g 'context.md'`
+Context maps: !`rg --files -g 'context-map.md'`
+ADRs: !`rg --files -g '**/adr/*.md'`
+
+</repo-docs-snapshot>
 
 <what-to-do>
 
