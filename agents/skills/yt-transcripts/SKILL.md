@@ -24,7 +24,7 @@ When outputting to a knowledge wiki, preserve both layers:
 
 The cleaned transcript is deterministic normalized text, not source-of-truth raw input. The `.vtt` asset is the raw caption source.
 
-When using a wiki, update `<wiki>/index.md` with the cleaned transcript under `## Raw Sources`. Leave `raw/assets/` as unindexed source assets.
+When using a wiki, update `<wiki>/index.md` with the cleaned transcript under `## Raw Sources`. The ingest script only creates the raw caption asset and cleaned transcript; it does not update the index. Leave `raw/assets/` as unindexed source assets.
 
 ## Commands
 
@@ -74,6 +74,7 @@ The script:
 - writes a cleaned markdown transcript when using `--wiki-dir` or `--output-dir`
 - prints cleaned markdown only when using `--stdout`
 - adds frontmatter with YouTube metadata and transcript provenance
+- does not update wiki indexes; the agent must do that separately when using `--wiki-dir`
 
 The cleaner is deterministic and heuristic:
 
