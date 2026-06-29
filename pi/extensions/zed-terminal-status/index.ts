@@ -11,8 +11,8 @@ function enabled(): boolean {
 function title(pi: ExtensionAPI, state: "idle" | "working", frame?: string): string {
 	const cwd = path.basename(process.cwd());
 	const session = pi.getSessionName();
-	const prefix = state === "working" ? frame ?? SPINNER_FRAMES[0] : "●";
-	const base = session ? `pi ${state} - ${session} - ${cwd}` : `pi ${state} - ${cwd}`;
+	const prefix = state === "working" ? frame ?? SPINNER_FRAMES[0] : "○";
+	const base = session ? `π - ${session} - ${cwd}` : `π - ${cwd}`;
 	return `${prefix} ${base}`;
 }
 

@@ -4,8 +4,8 @@ Pi extension for Zed Terminal Threads.
 
 It exposes Pi's simple lifecycle through the terminal title:
 
-- `⠋ pi working - ...` while Pi is processing a prompt
-- `● pi idle - ...` when Pi is waiting for input
+- `⠋ π - ...` while Pi is processing a prompt
+- `○ π - ...` when Pi is waiting for input
 
 It also emits a terminal bell on `agent_end`, which Zed uses for Terminal Thread notifications.
 
