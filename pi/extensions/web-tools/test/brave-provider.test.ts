@@ -138,6 +138,28 @@ test("parseBraveSearchResults rejects unrecognized response shapes", () => {
 	});
 });
 
+test("parseBraveSearchResults accepts Brave no-results responses", () => {
+	assert.deepEqual(parseBraveSearchResults({ mixed: { main: [], top: [], side: [] } }), {
+		_tag: "ok",
+		value: [],
+	});
+	assert.deepEqual(parseBraveSearchResults({ web: { results: [] } }), {
+		_tag: "ok",
+		value: [],
+	});
+});
+
+test("parseBraveSearchResults rejects non-empty result arrays with no recognized items", () => {
+	assert.deepEqual(parseBraveSearchResults({ web: { results: [{ title: "Only title" }] } }), {
+		_tag: "err",
+		error: { _tag: "SearchProviderNoRecognizedResults", provider: "brave" },
+	});
+	assert.deepEqual(parseBraveSearchResults({ web: { results: [{ title: "File", url: "file:///tmp/example" }] } }), {
+		_tag: "err",
+		error: { _tag: "SearchProviderNoRecognizedResults", provider: "brave" },
+	});
+});
+
 test("parseBraveSearchResults filters unsafe URLs", () => {
 	const result = parseBraveSearchResults({
 		web: {
