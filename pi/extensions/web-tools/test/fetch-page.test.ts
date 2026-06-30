@@ -13,7 +13,7 @@ const testFetchSettings: WebToolsSettings["fetch"] = {
 	maxResponseBytes: 5 * 1024 * 1024,
 	blockPrivateHosts: true,
 	maxRedirects: 5,
-	fallbackUserAgent: "opencode",
+	fallbackUserAgent: "pi-web-tools",
 };
 
 class FakePublicWebClient implements PublicWebClient {

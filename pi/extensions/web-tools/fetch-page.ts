@@ -4,9 +4,9 @@ import type { PublicWebClient, PublicWebError } from "./public-web-client.ts";
 import { err, ok, type Result } from "./result.ts";
 import type { PublicHttpUrl, WebFetchFormat, WebToolsSettings } from "./types.ts";
 
-export const OPENCODE_WEBFETCH_DEFAULT_USER_AGENT =
+export const WEBFETCH_DEFAULT_USER_AGENT =
 	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
-export const OPENCODE_WEBFETCH_FALLBACK_USER_AGENT = "opencode";
+export const WEBFETCH_FALLBACK_USER_AGENT = "pi-web-tools";
 
 export interface FetchPageInput {
 	readonly url: PublicHttpUrl;
@@ -61,7 +61,7 @@ export class FetchPage {
 			{
 				url: input.url,
 				accept: getAcceptHeader(input.format),
-				userAgent: OPENCODE_WEBFETCH_DEFAULT_USER_AGENT,
+				userAgent: WEBFETCH_DEFAULT_USER_AGENT,
 				fallbackUserAgent: getFallbackUserAgent(this.dependencies.settings.fallbackUserAgent),
 				maxRedirects: this.dependencies.settings.maxRedirects,
 				maxResponseBytes: this.dependencies.settings.maxResponseBytes,
@@ -130,7 +130,7 @@ export function getAcceptHeader(format: WebFetchFormat): string {
 }
 
 /** Build legacy webfetch request headers for tests and UI-adjacent callers. */
-export function createWebFetchHeaders(accept: string, userAgent = OPENCODE_WEBFETCH_DEFAULT_USER_AGENT): Record<string, string> {
+export function createWebFetchHeaders(accept: string, userAgent = WEBFETCH_DEFAULT_USER_AGENT): Record<string, string> {
 	return {
 		"User-Agent": userAgent,
 		Accept: accept,
@@ -141,7 +141,7 @@ export function createWebFetchHeaders(accept: string, userAgent = OPENCODE_WEBFE
 /** Return the configured fallback user agent or the web-tools default. */
 export function getFallbackUserAgent(configuredUserAgent?: string): string {
 	const trimmed = configuredUserAgent?.trim();
-	return trimmed || OPENCODE_WEBFETCH_FALLBACK_USER_AGENT;
+	return trimmed || WEBFETCH_FALLBACK_USER_AGENT;
 }
 
 /** Detect the Cloudflare challenge response that webfetch retries with a fallback user agent. */

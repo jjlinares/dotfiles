@@ -43,7 +43,7 @@ const DEFAULTS = {
 	fetchMaxResponseBytes: FETCH_MAX_RESPONSE_BYTES,
 	fetchBlockPrivateHosts: true,
 	fetchMaxRedirects: FETCH_MAX_REDIRECTS,
-	fetchFallbackUserAgent: "opencode",
+	fetchFallbackUserAgent: "pi-web-tools",
 	searchProvider: "brave",
 	searchEndpoint: "https://api.search.brave.com/res/v1/web/search",
 	searchTimeoutSeconds: SEARCH_TIMEOUT_SECONDS.default,

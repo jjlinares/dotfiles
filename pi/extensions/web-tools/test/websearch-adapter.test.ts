@@ -18,7 +18,7 @@ const settings: WebToolsSettings = {
 		maxResponseBytes: 5 * 1024 * 1024,
 		blockPrivateHosts: true,
 		maxRedirects: 5,
-		fallbackUserAgent: "opencode",
+		fallbackUserAgent: "pi-web-tools",
 	},
 	search: {
 		enabled: true,

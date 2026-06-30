@@ -16,8 +16,8 @@ import { redactUrlCredentialsForDisplay, type ParsePublicHttpUrlError, type WebF
 import { parseWebFetchToolParams } from "./webfetch-input.ts";
 
 export {
-	OPENCODE_WEBFETCH_DEFAULT_USER_AGENT,
-	OPENCODE_WEBFETCH_FALLBACK_USER_AGENT,
+	WEBFETCH_DEFAULT_USER_AGENT,
+	WEBFETCH_FALLBACK_USER_AGENT,
 	createWebFetchHeaders,
 	getFallbackUserAgent,
 	shouldRetryWithFallbackUserAgent,
