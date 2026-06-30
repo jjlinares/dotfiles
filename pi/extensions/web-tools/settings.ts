@@ -1,14 +1,12 @@
 import {
 	parsePublicHttpUrl,
 	type PublicHttpUrl,
-	type SearchDepth,
 	type SearchProviderName,
 	type WebFetchFormat,
 	type WebToolsSettings,
 } from "./types.ts";
 
 export const WEB_FETCH_FORMATS = ["markdown", "text", "html"] as const satisfies readonly WebFetchFormat[];
-export const SEARCH_DEPTHS = ["auto", "fast", "deep"] as const satisfies readonly SearchDepth[];
 export const SEARCH_PROVIDERS = ["brave"] as const satisfies readonly SearchProviderName[];
 
 export const FETCH_TIMEOUT_SECONDS = {
@@ -48,7 +46,6 @@ const DEFAULTS = {
 	searchEndpoint: "https://api.search.brave.com/res/v1/web/search",
 	searchTimeoutSeconds: SEARCH_TIMEOUT_SECONDS.default,
 	searchDefaultMaxResults: SEARCH_MAX_RESULTS.default,
-	searchDefaultDepth: "auto",
 } as const;
 
 /** Clamp a finite number to an inclusive integer range. */
@@ -140,11 +137,6 @@ export function getWebToolsSettings(): WebToolsSettings {
 				process.env.PI_WEB_TOOLS_SEARCH_MAX_RESULTS,
 				DEFAULTS.searchDefaultMaxResults,
 				{ min: SEARCH_MAX_RESULTS.min, max: SEARCH_MAX_RESULTS.max },
-			),
-			defaultDepth: parseEnumSetting(
-				process.env.PI_WEB_TOOLS_SEARCH_DEPTH,
-				SEARCH_DEPTHS,
-				DEFAULTS.searchDefaultDepth,
 			),
 		},
 	};

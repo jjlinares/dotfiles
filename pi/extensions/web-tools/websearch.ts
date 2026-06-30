@@ -1,11 +1,11 @@
 import { Type } from "typebox";
-import { StringEnum, Text } from "./pi-compat.ts";
+import { Text } from "./pi-compat.ts";
 import { createOperationSignal, isOperationTimeoutError } from "./network.ts";
 import { BraveSearchProvider } from "./providers/brave.ts";
 import type { SearchProvider } from "./providers/types.ts";
 import { appendExpandHint, appendExpandedPreview, getTextContent } from "./render.ts";
 import { SearchWeb, type SearchWebError } from "./search-web.ts";
-import { getWebToolsSettings, SEARCH_DEPTHS, type ToolInputParseError } from "./settings.ts";
+import { getWebToolsSettings, type ToolInputParseError } from "./settings.ts";
 import {
 	TempFileToolOutputStore,
 	formatSearchResults,
@@ -16,7 +16,7 @@ import {
 	type WebSearchDetails,
 } from "./tool-output.ts";
 import { parseWebSearchToolParams } from "./websearch-input.ts";
-import type { ParseSearchQueryError, SearchDepth, WebToolsSettings } from "./types.ts";
+import type { ParseSearchQueryError, WebToolsSettings } from "./types.ts";
 
 export { formatSearchResults };
 
@@ -50,12 +50,6 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 					description: "Maximum number of results to return. Overrides the web-tools search default max results setting.",
 				}),
 			),
-			depth: Type.Optional(
-				StringEnum([...SEARCH_DEPTHS], {
-					description:
-						"Search depth. Accepted for compatibility; Brave Search does not expose depth-specific behavior here.",
-				}),
-			),
 		}),
 
 		async execute(
@@ -75,7 +69,6 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 				content: [textContent(`Searching for ${JSON.stringify(parsed.value.query)}...`)],
 				details: {
 					query: parsed.value.query,
-					depth: parsed.value.depth,
 					maxResults: parsed.value.maxResults,
 					provider: actualComposition.settings.search.provider,
 					resultCount: 0,
@@ -88,7 +81,6 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 					{
 						query: parsed.value.query,
 						maxResults: parsed.value.maxResults,
-						depth: parsed.value.depth,
 					},
 					{ signal: composed.signal },
 				);
@@ -107,12 +99,9 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 			}
 		},
 
-		renderCall(args: { query: string; depth?: SearchDepth; maxResults?: number }, theme: RenderTheme) {
+		renderCall(args: { query: string; maxResults?: number }, theme: RenderTheme) {
 			let text = theme.fg("toolTitle", theme.bold("websearch "));
 			text += theme.fg("accent", JSON.stringify(String(args.query)));
-			if (args.depth && args.depth !== "auto") {
-				text += theme.fg("muted", ` (${args.depth})`);
-			}
 			if (args.maxResults) {
 				text += theme.fg("dim", ` limit=${args.maxResults}`);
 			}

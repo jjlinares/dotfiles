@@ -28,9 +28,9 @@ test("parseWebFetchToolParams rejects invalid boundary input", () => {
 		_tag: "err",
 		error: { _tag: "InvalidToolField", field: "format", message: "Expected one of: markdown, text, html" },
 	});
-	assert.deepEqual(parseWebFetchToolParams({ url: "https://example.com", depth: "auto" }, testFetchSettings), {
+	assert.deepEqual(parseWebFetchToolParams({ url: "https://example.com", bogus: true }, testFetchSettings), {
 		_tag: "err",
-		error: { _tag: "UnknownToolField", field: "depth" },
+		error: { _tag: "UnknownToolField", field: "bogus" },
 	});
 	assert.deepEqual(parseWebFetchToolParams({ url: "https://example.com", timeout: "30" }, testFetchSettings), {
 		_tag: "err",

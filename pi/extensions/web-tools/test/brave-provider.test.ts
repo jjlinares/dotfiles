@@ -139,7 +139,7 @@ test("parseBraveSearchResults filters unsafe URLs", () => {
 function searchRequest(queryText: string, maxResults: number) {
 	const query = parseSearchQuery(queryText);
 	assert.equal(query._tag, "ok");
-	return { query: query.value, maxResults, depth: "auto" as const };
+	return { query: query.value, maxResults };
 }
 
 function jsonResponse(payload: unknown): Response {

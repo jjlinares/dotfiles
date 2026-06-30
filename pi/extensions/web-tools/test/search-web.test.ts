@@ -15,7 +15,6 @@ const testSearchSettings: WebToolsSettings["search"] = {
 	apiKey: "test-key",
 	timeoutSeconds: 25,
 	defaultMaxResults: 8,
-	defaultDepth: "auto",
 };
 
 class FakeSearchProvider implements SearchProvider {
@@ -46,7 +45,7 @@ test("SearchWeb returns provider results with query metadata", async () => {
 	const provider = new FakeSearchProvider(ok([exampleResult]));
 	const service = new SearchWeb({ provider, settings: testSearchSettings });
 
-	const result = await service.search({ query: query.value, maxResults: 8, depth: "auto" });
+	const result = await service.search({ query: query.value, maxResults: 8 });
 
 	assert.equal(result._tag, "ok");
 	assert.equal(result.value.provider, "brave");

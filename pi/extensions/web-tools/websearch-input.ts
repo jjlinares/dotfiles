@@ -1,6 +1,5 @@
 import { err, ok, type Result } from "./result.ts";
 import {
-	SEARCH_DEPTHS,
 	SEARCH_MAX_RESULTS,
 	SEARCH_TIMEOUT_SECONDS,
 	clampInteger,
@@ -9,7 +8,6 @@ import {
 import {
 	parseSearchQuery,
 	type ParseSearchQueryError,
-	type SearchDepth,
 	type SearchQuery,
 	type WebToolsSettings,
 } from "./types.ts";
@@ -17,13 +15,11 @@ import {
 export interface RawWebSearchToolParams {
 	readonly query: string;
 	readonly maxResults?: number;
-	readonly depth?: SearchDepth;
 }
 
 export interface WebSearchToolInput {
 	readonly query: SearchQuery;
 	readonly maxResults: number;
-	readonly depth: SearchDepth;
 	readonly timeoutSeconds: number;
 }
 
@@ -37,7 +33,7 @@ export function parseWebSearchToolParams(
 	}
 
 	for (const key of Object.keys(raw)) {
-		if (key !== "query" && key !== "maxResults" && key !== "depth") {
+		if (key !== "query" && key !== "maxResults") {
 			return err({ _tag: "UnknownToolField", field: key });
 		}
 	}
@@ -69,29 +65,16 @@ export function parseWebSearchToolParams(
 		});
 	}
 
-	const depthValue = raw["depth"];
-	let depth = settings.defaultDepth;
-	if (depthValue !== undefined) {
-		if (typeof depthValue !== "string" || !isSearchDepth(depthValue)) {
-			return err({ _tag: "InvalidToolField", field: "depth", message: "Expected one of: auto, fast, deep" });
-		}
-		depth = depthValue;
-	}
-
 	const timeoutSeconds = clampInteger(settings.timeoutSeconds, {
 		min: SEARCH_TIMEOUT_SECONDS.min,
 		max: SEARCH_TIMEOUT_SECONDS.max,
 		fallback: SEARCH_TIMEOUT_SECONDS.default,
 	});
 
-	return ok({ query: query.value, maxResults, depth, timeoutSeconds });
+	return ok({ query: query.value, maxResults, timeoutSeconds });
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isSearchDepth(value: string): value is SearchDepth {
-	const depths: readonly string[] = SEARCH_DEPTHS;
-	return depths.includes(value);
-}

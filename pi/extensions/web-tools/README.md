@@ -40,7 +40,6 @@ Parameters:
 
 - `query` — required
 - `maxResults` — optional, clamped to `1..20`
-- `depth` — optional: `auto`, `fast`, `deep` (accepted for compatibility; Brave backend ignores it)
 
 Current defaults:
 
@@ -49,14 +48,12 @@ Current defaults:
 - `endpoint`: Brave Search API endpoint, overridable with `PI_WEB_TOOLS_SEARCH_ENDPOINT`
 - `timeoutSeconds`: `25`
 - `defaultMaxResults`: `8`
-- `defaultDepth`: `auto`
 
 Behavior notes:
 
 - uses Brave Search API (`https://api.search.brave.com/res/v1/web/search` by default)
 - sends `X-Subscription-Token` from `PI_WEB_TOOLS_BRAVE_API_KEY`
 - search responses are limited to `1 MB`
-- `depth` is kept only for call-shape compatibility
 
 ## Configuration
 
@@ -79,7 +76,6 @@ The extension has an internal settings shape:
     apiKey: string;
     timeoutSeconds: number;
     defaultMaxResults: number;
-    defaultDepth: "auto" | "fast" | "deep";
   };
 }
 ```
@@ -99,9 +95,8 @@ Configuration comes from environment variables:
 | `PI_WEB_TOOLS_SEARCH_ENABLED` | `on`, `off` |
 | `PI_WEB_TOOLS_SEARCH_TIMEOUT_SECONDS` | `1..120` |
 | `PI_WEB_TOOLS_SEARCH_MAX_RESULTS` | `1..20` |
-| `PI_WEB_TOOLS_SEARCH_DEPTH` | `auto`, `fast`, `deep` |
 
-Per-call overrides still work for `webfetch.format`, `webfetch.timeout`, `websearch.maxResults`, and `websearch.depth`.
+Per-call overrides still work for `webfetch.format`, `webfetch.timeout`, and `websearch.maxResults`.
 
 ## Source of truth
 

@@ -9,7 +9,7 @@ import type { FetchPageResult } from "./fetch-page.ts";
 import { err, ok, type Result } from "./result.ts";
 import type { SearchWebResult } from "./search-web.ts";
 import { writeTempTextFile } from "./temp.ts";
-import type { SearchDepth, SearchProviderName, WebFetchFormat } from "./types.ts";
+import type { SearchProviderName, WebFetchFormat } from "./types.ts";
 import type { NormalizedSearchResult } from "./providers/types.ts";
 
 export interface ToolOutputStore {
@@ -54,7 +54,6 @@ export interface WebFetchDetails {
 
 export interface WebSearchDetails {
 	readonly query: string;
-	readonly depth: SearchDepth;
 	readonly maxResults: number;
 	readonly provider: SearchProviderName;
 	readonly resultCount: number;
@@ -140,7 +139,6 @@ export async function projectSearchWebResultToPiToolResult(
 		content: [textContent(truncated.value.text)],
 		details: {
 			query: result.query,
-			depth: result.depth,
 			maxResults: result.maxResults,
 			provider: result.provider,
 			resultCount: result.results.length,

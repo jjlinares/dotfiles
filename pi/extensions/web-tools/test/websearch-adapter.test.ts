@@ -27,7 +27,6 @@ const settings: WebToolsSettings = {
 		apiKey: "test-key",
 		timeoutSeconds: 25,
 		defaultMaxResults: 8,
-		defaultDepth: "auto",
 	},
 };
 

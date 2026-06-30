@@ -33,7 +33,6 @@ test("projectSearchWebResultToPiToolResult truncates and records full output pat
 	const result = await projectSearchWebResultToPiToolResult(
 		{
 			query: query.value,
-			depth: "auto",
 			maxResults: 8,
 			provider: "brave",
 			results: Array.from({ length: 200 }, (_, index) => ({

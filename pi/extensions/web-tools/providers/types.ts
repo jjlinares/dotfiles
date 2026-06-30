@@ -1,11 +1,10 @@
 import type { Result } from "../result.ts";
-import type { NormalizedSearchResult, SearchDepth, SearchProviderName, SearchQuery } from "../types.ts";
+import type { NormalizedSearchResult, SearchProviderName, SearchQuery } from "../types.ts";
 export type { NormalizedSearchResult } from "../types.ts";
 
 export interface SearchProviderRequest {
 	readonly query: SearchQuery;
 	readonly maxResults: number;
-	readonly depth: SearchDepth;
 }
 
 export type SearchProviderError =

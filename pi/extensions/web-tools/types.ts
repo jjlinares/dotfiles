@@ -10,7 +10,6 @@ export type PublicHttpUrl = string & { readonly __brand: "PublicHttpUrl" };
 export type SearchQuery = string & { readonly __brand: "SearchQuery" };
 
 export type WebFetchFormat = "markdown" | "text" | "html";
-export type SearchDepth = "auto" | "fast" | "deep";
 export type SearchProviderName = "brave";
 export type ContentKind = "html" | "text" | "raster-image" | "svg" | "binary";
 
@@ -38,7 +37,6 @@ export interface WebToolsSettings {
 		readonly apiKey: string;
 		readonly timeoutSeconds: number;
 		readonly defaultMaxResults: number;
-		readonly defaultDepth: SearchDepth;
 	};
 }
 
@@ -75,7 +73,6 @@ export interface NormalizedSearchResult {
 
 export interface WebSearchDetails {
 	readonly query: string;
-	readonly depth: SearchDepth;
 	readonly maxResults: number;
 	readonly provider: SearchProviderName;
 	readonly resultCount: number;
