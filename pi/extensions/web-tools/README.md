@@ -95,7 +95,7 @@ Configuration comes from environment variables:
 | `PI_WEB_TOOLS_FETCH_MAX_REDIRECTS` | `0..20` |
 | `PI_WEB_TOOLS_FETCH_FALLBACK_USER_AGENT` | user-agent string |
 | `PI_WEB_TOOLS_BRAVE_API_KEY` | Brave Search API key |
-| `PI_WEB_TOOLS_SEARCH_ENDPOINT` | optional Brave-compatible HTTP(S) endpoint override |
+| `PI_WEB_TOOLS_SEARCH_ENDPOINT` | optional Brave-compatible HTTPS endpoint override |
 | `PI_WEB_TOOLS_SEARCH_ENABLED` | `on`, `off` |
 | `PI_WEB_TOOLS_SEARCH_TIMEOUT_SECONDS` | `1..120` |
 | `PI_WEB_TOOLS_SEARCH_MAX_RESULTS` | `1..20` |

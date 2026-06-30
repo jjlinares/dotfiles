@@ -95,11 +95,7 @@ export function parseEnumSetting<T extends string>(
 
 /** Return web-tools settings from environment variables, with safe defaults. */
 export function getWebToolsSettings(): WebToolsSettings {
-	const searchEndpointInput = process.env.PI_WEB_TOOLS_SEARCH_ENDPOINT;
-	const parsedSearchEndpoint = parsePublicHttpUrl(searchEndpointInput ?? DEFAULTS.searchEndpoint);
-	const searchEndpoint = parsedSearchEndpoint._tag === "ok"
-		? parsedSearchEndpoint.value
-		: mustParsePublicHttpUrl(DEFAULTS.searchEndpoint);
+	const searchEndpoint = parseSearchEndpoint(process.env.PI_WEB_TOOLS_SEARCH_ENDPOINT);
 	const apiKey = process.env.PI_WEB_TOOLS_BRAVE_API_KEY?.trim() ?? "";
 
 	return {
@@ -152,6 +148,14 @@ export function getWebToolsSettings(): WebToolsSettings {
 			),
 		},
 	};
+}
+
+function parseSearchEndpoint(input: string | undefined): PublicHttpUrl {
+	const parsed = parsePublicHttpUrl(input ?? DEFAULTS.searchEndpoint);
+	if (parsed._tag === "ok" && new URL(parsed.value).protocol === "https:") {
+		return parsed.value;
+	}
+	return mustParsePublicHttpUrl(DEFAULTS.searchEndpoint);
 }
 
 function mustParsePublicHttpUrl(input: string): PublicHttpUrl {

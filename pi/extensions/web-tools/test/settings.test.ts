@@ -27,6 +27,19 @@ test("parseEnumSetting validates allowed values", () => {
 	assert.equal(parseEnumSetting(undefined, ["markdown", "text", "html"], "text"), "text");
 });
 
+test("getWebToolsSettings requires HTTPS search endpoints", () => {
+	const previousEndpoint = process.env.PI_WEB_TOOLS_SEARCH_ENDPOINT;
+	try {
+		process.env.PI_WEB_TOOLS_SEARCH_ENDPOINT = "http://search.example.test/api";
+		assert.equal(getWebToolsSettings().search.endpoint, "https://api.search.brave.com/res/v1/web/search");
+
+		process.env.PI_WEB_TOOLS_SEARCH_ENDPOINT = "https://search.example.test/api";
+		assert.equal(getWebToolsSettings().search.endpoint, "https://search.example.test/api");
+	} finally {
+		restoreEnv("PI_WEB_TOOLS_SEARCH_ENDPOINT", previousEndpoint);
+	}
+});
+
 test("getWebToolsSettings enables search only with a Brave API key by default", () => {
 	const previousApiKey = process.env.PI_WEB_TOOLS_BRAVE_API_KEY;
 	const previousEndpoint = process.env.PI_WEB_TOOLS_SEARCH_ENDPOINT;
