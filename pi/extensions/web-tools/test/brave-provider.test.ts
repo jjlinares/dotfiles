@@ -1,10 +1,92 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BRAVE_SEARCH_ENDPOINT, parseBraveSearchResults } from "../providers/brave.ts";
-import { parsePublicHttpUrl } from "../types.ts";
+import {
+	BRAVE_SEARCH_ENDPOINT,
+	BraveSearchProvider,
+	MAX_SEARCH_RESPONSE_BYTES,
+	parseBraveSearchResults,
+} from "../providers/brave.ts";
+import { parsePublicHttpUrl, parseSearchQuery } from "../types.ts";
 
 const endpoint = parsePublicHttpUrl(BRAVE_SEARCH_ENDPOINT);
 assert.equal(endpoint._tag, "ok");
+
+test("BraveSearchProvider sends the Brave request contract", async () => {
+	let capturedUrl: URL | undefined;
+	let capturedInit: RequestInit | undefined;
+	await withMockFetch(async (input, init) => {
+		capturedUrl = new URL(String(input));
+		capturedInit = init;
+		return jsonResponse({
+			web: {
+				results: [
+					{ title: "Example", url: "https://example.com/", description: "Example result" },
+				],
+			},
+		});
+	}, async () => {
+		const provider = new BraveSearchProvider({ endpoint: endpoint.value, apiKey: "test-token" });
+		const result = await provider.search(searchRequest("example query", 3));
+
+		assert.equal(result._tag, "ok");
+		assert.equal(capturedUrl?.searchParams.get("q"), "example query");
+		assert.equal(capturedUrl?.searchParams.get("count"), "3");
+		assert.equal(capturedInit?.method, "GET");
+		assert.deepEqual(capturedInit?.headers, {
+			accept: "application/json",
+			"x-subscription-token": "test-token",
+		});
+		assert.equal(result.value[0]?.url, "https://example.com/");
+	});
+});
+
+test("BraveSearchProvider rejects non-2xx responses", async () => {
+	await withMockFetch(async () => new Response("rate limited", { status: 429 }), async () => {
+		const provider = new BraveSearchProvider({ endpoint: endpoint.value, apiKey: "test-token" });
+		const result = await provider.search(searchRequest("example", 3));
+
+		assert.deepEqual(result, {
+			_tag: "err",
+			error: { _tag: "SearchProviderStatusRejected", provider: "brave", status: 429 },
+		});
+	});
+});
+
+test("BraveSearchProvider rejects invalid JSON", async () => {
+	await withMockFetch(async () => new Response("not json", { headers: { "content-type": "application/json" } }), async () => {
+		const provider = new BraveSearchProvider({ endpoint: endpoint.value, apiKey: "test-token" });
+		const result = await provider.search(searchRequest("example", 3));
+
+		assert.deepEqual(result, {
+			_tag: "err",
+			error: { _tag: "SearchProviderProtocolInvalid", provider: "brave", reason: "Invalid JSON response" },
+		});
+	});
+});
+
+test("BraveSearchProvider rejects oversized responses", async () => {
+	await withMockFetch(async () => new Response("", { headers: { "content-length": String(MAX_SEARCH_RESPONSE_BYTES + 1) } }), async () => {
+		const provider = new BraveSearchProvider({ endpoint: endpoint.value, apiKey: "test-token" });
+		const result = await provider.search(searchRequest("example", 3));
+
+		assert.deepEqual(result, {
+			_tag: "err",
+			error: { _tag: "SearchProviderResponseTooLarge", provider: "brave", maxBytes: MAX_SEARCH_RESPONSE_BYTES },
+		});
+	});
+});
+
+test("BraveSearchProvider rejects oversized streamed bodies", async () => {
+	await withMockFetch(async () => new Response("x".repeat(MAX_SEARCH_RESPONSE_BYTES + 1)), async () => {
+		const provider = new BraveSearchProvider({ endpoint: endpoint.value, apiKey: "test-token" });
+		const result = await provider.search(searchRequest("example", 3));
+
+		assert.deepEqual(result, {
+			_tag: "err",
+			error: { _tag: "SearchProviderResponseTooLarge", provider: "brave", maxBytes: MAX_SEARCH_RESPONSE_BYTES },
+		});
+	});
+});
 
 test("parseBraveSearchResults normalizes web results", () => {
 	const result = parseBraveSearchResults({
@@ -53,3 +135,26 @@ test("parseBraveSearchResults filters unsafe URLs", () => {
 	assert.equal(result.value.length, 1);
 	assert.equal(result.value[0]?.url, "https://example.net/path");
 });
+
+function searchRequest(queryText: string, maxResults: number) {
+	const query = parseSearchQuery(queryText);
+	assert.equal(query._tag, "ok");
+	return { query: query.value, maxResults, depth: "auto" as const };
+}
+
+function jsonResponse(payload: unknown): Response {
+	return new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } });
+}
+
+async function withMockFetch(
+	mock: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+	callback: () => Promise<void>,
+): Promise<void> {
+	const originalFetch = globalThis.fetch;
+	globalThis.fetch = mock;
+	try {
+		await callback();
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+}
