@@ -34,6 +34,10 @@ interface RenderTheme {
 	bold(value: string): string;
 }
 
+interface RenderContext {
+	readonly isError?: boolean;
+}
+
 type WebFetchBoundaryError = ToolInputParseError | ParsePublicHttpUrlError | FetchPageError | ToolOutputStoreError;
 
 export function createWebFetchTool(composition?: WebFetchToolComposition) {
@@ -47,19 +51,22 @@ export function createWebFetchTool(composition?: WebFetchToolComposition) {
 			"Use webfetch when the user provides a URL or after websearch identifies a page to inspect.",
 			"Prefer webfetch format=markdown unless the user explicitly wants plain text or raw source.",
 		],
-		parameters: Type.Object({
-			url: Type.String({ description: "The http:// or https:// URL to fetch." }),
-			format: Type.Optional(
-				StringEnum([...WEB_FETCH_FORMATS], {
-					description: "Return format. Defaults to the web-tools fetch default format setting.",
-				}),
-			),
-			timeout: Type.Optional(
-				Type.Number({
-					description: "Optional timeout in seconds. Overrides the web-tools fetch timeout setting.",
-				}),
-			),
-		}),
+		parameters: Type.Object(
+			{
+				url: Type.String({ description: "The http:// or https:// URL to fetch." }),
+				format: Type.Optional(
+					StringEnum([...WEB_FETCH_FORMATS], {
+						description: "Return format. Defaults to the web-tools fetch default format setting.",
+					}),
+				),
+				timeout: Type.Optional(
+					Type.Number({
+						description: "Optional timeout in seconds. Overrides the web-tools fetch timeout setting.",
+					}),
+				),
+			},
+			{ additionalProperties: false },
+		),
 
 		async execute(
 			_toolCallId: string,
@@ -120,11 +127,12 @@ export function createWebFetchTool(composition?: WebFetchToolComposition) {
 			result: { content: Array<{ type: string; text?: string }>; details?: WebFetchDetails; isError?: boolean },
 			options: { expanded: boolean; isPartial: boolean },
 			theme: RenderTheme,
+			context?: RenderContext,
 		) {
 			if (options.isPartial) {
 				return new Text(theme.fg("warning", "Fetching..."), 0, 0);
 			}
-			if (result.isError) {
+			if (context?.isError || result.isError) {
 				return new Text(theme.fg("error", `✗ ${getTextContent(result.content) || "Fetch failed"}`), 0, 0);
 			}
 

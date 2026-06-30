@@ -32,11 +32,29 @@ test("BraveSearchProvider sends the Brave request contract", async () => {
 		assert.equal(capturedUrl?.searchParams.get("q"), "example query");
 		assert.equal(capturedUrl?.searchParams.get("count"), "3");
 		assert.equal(capturedInit?.method, "GET");
+		assert.equal(capturedInit?.redirect, "manual");
 		assert.deepEqual(capturedInit?.headers, {
 			accept: "application/json",
 			"x-subscription-token": "test-token",
 		});
 		assert.equal(result.value[0]?.url, "https://example.com/");
+	});
+});
+
+test("BraveSearchProvider rejects redirects without following with the API key", async () => {
+	const requestedUrls: string[] = [];
+	await withMockFetch(async (input) => {
+		requestedUrls.push(String(input));
+		return new Response("", { status: 302, headers: { location: "https://attacker.example/search" } });
+	}, async () => {
+		const provider = new BraveSearchProvider({ endpoint: endpoint.value, apiKey: "test-token" });
+		const result = await provider.search(searchRequest("example", 3));
+
+		assert.deepEqual(result, {
+			_tag: "err",
+			error: { _tag: "SearchProviderStatusRejected", provider: "brave", status: 302 },
+		});
+		assert.deepEqual(requestedUrls, [`${BRAVE_SEARCH_ENDPOINT}?q=example&count=3`]);
 	});
 });
 
@@ -115,6 +133,28 @@ test("parseBraveSearchResults normalizes web results", () => {
 
 test("parseBraveSearchResults rejects unrecognized response shapes", () => {
 	assert.deepEqual(parseBraveSearchResults({}), {
+		_tag: "err",
+		error: { _tag: "SearchProviderNoRecognizedResults", provider: "brave" },
+	});
+});
+
+test("parseBraveSearchResults accepts Brave no-results responses", () => {
+	assert.deepEqual(parseBraveSearchResults({ mixed: { main: [], top: [], side: [] } }), {
+		_tag: "ok",
+		value: [],
+	});
+	assert.deepEqual(parseBraveSearchResults({ web: { results: [] } }), {
+		_tag: "ok",
+		value: [],
+	});
+});
+
+test("parseBraveSearchResults rejects non-empty result arrays with no recognized items", () => {
+	assert.deepEqual(parseBraveSearchResults({ web: { results: [{ title: "Only title" }] } }), {
+		_tag: "err",
+		error: { _tag: "SearchProviderNoRecognizedResults", provider: "brave" },
+	});
+	assert.deepEqual(parseBraveSearchResults({ web: { results: [{ title: "File", url: "file:///tmp/example" }] } }), {
 		_tag: "err",
 		error: { _tag: "SearchProviderNoRecognizedResults", provider: "brave" },
 	});

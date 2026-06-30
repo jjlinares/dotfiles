@@ -39,6 +39,7 @@ export class BraveSearchProvider implements SearchProvider {
 					accept: "application/json",
 					"x-subscription-token": this.options.apiKey,
 				},
+				redirect: "manual",
 				signal: options.signal,
 			});
 		} catch (cause: unknown) {
@@ -102,7 +103,9 @@ export function parseBraveSearchResults(
 	const response = payload as BraveSearchResponse;
 	const rawResults = response.web?.results;
 	if (!Array.isArray(rawResults)) {
-		return err({ _tag: "SearchProviderNoRecognizedResults", provider: "brave" });
+		return hasEmptyBraveResultBuckets(payload)
+			? ok([])
+			: err({ _tag: "SearchProviderNoRecognizedResults", provider: "brave" });
 	}
 
 	const results: NormalizedSearchResult[] = [];
@@ -111,7 +114,17 @@ export function parseBraveSearchResults(
 		if (parsed) results.push(parsed);
 	}
 
+	if (rawResults.length > 0 && results.length === 0) {
+		return err({ _tag: "SearchProviderNoRecognizedResults", provider: "brave" });
+	}
+
 	return ok(results);
+}
+
+function hasEmptyBraveResultBuckets(payload: Record<string, unknown>): boolean {
+	const mixed = payload.mixed;
+	if (!isRecord(mixed)) return false;
+	return ["main", "top", "side"].every((bucket) => Array.isArray(mixed[bucket]) && mixed[bucket].length === 0);
 }
 
 function parseBraveSearchResult(item: unknown): NormalizedSearchResult | undefined {

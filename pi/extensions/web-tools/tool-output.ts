@@ -9,8 +9,9 @@ import type { FetchPageResult } from "./fetch-page.ts";
 import { err, ok, type Result } from "./result.ts";
 import type { SearchWebResult } from "./search-web.ts";
 import { writeTempTextFile } from "./temp.ts";
-import type { SearchProviderName, WebFetchFormat } from "./types.ts";
-import type { NormalizedSearchResult } from "./providers/types.ts";
+import type { NormalizedSearchResult, WebFetchDetails, WebSearchDetails } from "./types.ts";
+
+export type { WebFetchDetails, WebSearchDetails } from "./types.ts";
 
 export interface ToolOutputStore {
 	writeTextFile(prefix: string, fileName: string, content: string): Promise<Result<string, ToolOutputStoreError>>;
@@ -35,31 +36,6 @@ export type PiImageContent = { readonly type: "image"; readonly data: string; re
 export interface PiToolResult<Details> {
 	readonly content: Array<PiTextContent | PiImageContent>;
 	readonly details: Details;
-}
-
-export interface WebFetchDetails {
-	readonly requestedUrl: string;
-	readonly finalUrl: string;
-	readonly format: WebFetchFormat;
-	readonly status: number;
-	readonly mime: string;
-	readonly contentType: string;
-	readonly charset?: string;
-	readonly decoder?: string;
-	readonly bytes: number;
-	readonly image?: boolean;
-	readonly truncated?: boolean;
-	readonly fullOutputPath?: string;
-}
-
-export interface WebSearchDetails {
-	readonly query: string;
-	readonly maxResults: number;
-	readonly provider: SearchProviderName;
-	readonly resultCount: number;
-	readonly truncated?: boolean;
-	readonly fullOutputPath?: string;
-	readonly results: readonly NormalizedSearchResult[];
 }
 
 interface ProjectedTextOutput {

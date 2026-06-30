@@ -31,6 +31,10 @@ interface RenderTheme {
 	bold(value: string): string;
 }
 
+interface RenderContext {
+	readonly isError?: boolean;
+}
+
 type WebSearchBoundaryError = ToolInputParseError | ParseSearchQueryError | SearchWebError | ToolOutputStoreError;
 
 export function createWebSearchTool(composition?: WebSearchToolComposition) {
@@ -43,14 +47,17 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 			"Use websearch when the user needs current public-web information or when the right URL is not yet known.",
 			"After picking a promising result, use webfetch on that URL for deeper inspection.",
 		],
-		parameters: Type.Object({
-			query: Type.String({ description: "Search query." }),
-			maxResults: Type.Optional(
-				Type.Number({
-					description: "Maximum number of results to return. Overrides the web-tools search default max results setting.",
-				}),
-			),
-		}),
+		parameters: Type.Object(
+			{
+				query: Type.String({ description: "Search query." }),
+				maxResults: Type.Optional(
+					Type.Number({
+						description: "Maximum number of results to return. Overrides the web-tools search default max results setting.",
+					}),
+				),
+			},
+			{ additionalProperties: false },
+		),
 
 		async execute(
 			_toolCallId: string,
@@ -112,11 +119,12 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 			result: { content: Array<{ type: string; text?: string }>; details?: WebSearchDetails; isError?: boolean },
 			options: { expanded: boolean; isPartial: boolean },
 			theme: RenderTheme,
+			context?: RenderContext,
 		) {
 			if (options.isPartial) {
 				return new Text(theme.fg("warning", "Searching..."), 0, 0);
 			}
-			if (result.isError) {
+			if (context?.isError || result.isError) {
 				return new Text(theme.fg("error", `✗ ${getTextContent(result.content) || "Search failed"}`), 0, 0);
 			}
 
