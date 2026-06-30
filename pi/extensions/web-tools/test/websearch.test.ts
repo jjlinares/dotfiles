@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parsePublicHttpUrl } from "../types.ts";
-import { formatSearchResults } from "../websearch.ts";
+import { createWebSearchTool, formatSearchResults } from "../websearch.ts";
+
+test("websearch schema rejects unknown fields", () => {
+	const tool = createWebSearchTool();
+
+	assert.equal((tool.parameters as { additionalProperties?: unknown }).additionalProperties, false);
+});
 
 test("formatSearchResults renders deterministic URL-forward output", () => {
 	const url = parsePublicHttpUrl("https://example.com/");

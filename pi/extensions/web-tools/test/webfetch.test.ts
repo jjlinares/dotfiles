@@ -18,6 +18,12 @@ test("webfetch execute rejects URL credentials with a safe message", async () =>
 	);
 });
 
+test("webfetch schema rejects unknown fields", () => {
+	const tool = createWebFetchTool();
+
+	assert.equal((tool.parameters as { additionalProperties?: unknown }).additionalProperties, false);
+});
+
 test("createWebFetchHeaders uses the webfetch browser-like default user agent", () => {
 	const headers = createWebFetchHeaders("text/html");
 	assert.equal(headers["User-Agent"], WEBFETCH_DEFAULT_USER_AGENT);

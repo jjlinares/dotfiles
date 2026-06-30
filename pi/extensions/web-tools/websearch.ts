@@ -47,14 +47,17 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 			"Use websearch when the user needs current public-web information or when the right URL is not yet known.",
 			"After picking a promising result, use webfetch on that URL for deeper inspection.",
 		],
-		parameters: Type.Object({
-			query: Type.String({ description: "Search query." }),
-			maxResults: Type.Optional(
-				Type.Number({
-					description: "Maximum number of results to return. Overrides the web-tools search default max results setting.",
-				}),
-			),
-		}),
+		parameters: Type.Object(
+			{
+				query: Type.String({ description: "Search query." }),
+				maxResults: Type.Optional(
+					Type.Number({
+						description: "Maximum number of results to return. Overrides the web-tools search default max results setting.",
+					}),
+				),
+			},
+			{ additionalProperties: false },
+		),
 
 		async execute(
 			_toolCallId: string,
