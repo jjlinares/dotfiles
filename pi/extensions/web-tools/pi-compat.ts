@@ -40,7 +40,7 @@ export class Text {
 }
 
 export function StringEnum<T extends string>(values: readonly T[], options: Record<string, unknown> = {}) {
-	return Type.Union(values.map((value) => Type.Literal(value)), options);
+	return Type.Unsafe<T>({ type: "string", enum: [...values], ...options });
 }
 
 export function formatSize(bytes: number): string {
