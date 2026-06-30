@@ -39,6 +39,7 @@ export class BraveSearchProvider implements SearchProvider {
 					accept: "application/json",
 					"x-subscription-token": this.options.apiKey,
 				},
+				redirect: "manual",
 				signal: options.signal,
 			});
 		} catch (cause: unknown) {
