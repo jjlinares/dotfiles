@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runSubagents } from "./executor.mjs";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { keyHint, SessionManager } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import {
@@ -241,7 +241,7 @@ function renderStatusCard(
 		elapsed,
 	].filter(Boolean).join(" · ");
 	const lines = [`${stateGlyph} ${theme.fg("toolTitle", theme.bold("subagents"))} ${theme.fg("dim", `· ${status.state} · ${stats}`)}`];
-	if (!expanded && status.state === "running") lines.push(theme.fg("accent", "  Press Ctrl+O for details"));
+	if (!expanded && status.state === "running") lines.push(theme.fg("accent", `  ${keyHint("app.tools.expand", "for details")}`));
 
 	for (const task of status.subagents) {
 		const label = `${task.index + 1}. ${task.name}`;
