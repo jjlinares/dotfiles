@@ -69,6 +69,21 @@ test("FetchPublicWebClient rejects private hosts before fetching", async () => {
 	assert.equal(result.error._tag, "PrivateHostBlocked");
 });
 
+test("FetchPublicWebClient rejects private DNS results from the fetch resolver", async () => {
+	const lookups: string[] = [];
+	const client = new FetchPublicWebClient({
+		dnsLookup: async (hostname) => {
+			lookups.push(hostname);
+			return [{ address: "127.0.0.1", family: 4 }];
+		},
+	});
+	const result = await client.get(makeRequest("http://rebind.test/", { blockPrivateHosts: true }));
+
+	assert.equal(result._tag, "err");
+	assert.equal(result.error._tag, "PrivateIpBlocked");
+	assert.deepEqual(lookups, ["rebind.test"]);
+});
+
 test("FetchPublicWebClient rejects IPv4-mapped IPv6 private hosts before fetching", async () => {
 	const client = new FetchPublicWebClient();
 	const result = await client.get(makeRequest("http://[::ffff:127.0.0.1]:9/", { blockPrivateHosts: true }));

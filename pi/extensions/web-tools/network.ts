@@ -1,5 +1,7 @@
-import { lookup } from "node:dns/promises";
+import type { LookupAddress, LookupOptions } from "node:dns";
+import { lookup as dnsLookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { Agent, type Dispatcher } from "undici";
 import { err, ok, type Result } from "./result.ts";
 import { parsePublicHttpUrl, type ContentKind, type ParsePublicHttpUrlError, type ParsedContentType, type PublicHttpUrl } from "./types.ts";
 import type { PublicWebClient, PublicWebError, PublicWebRequest, PublicWebResponse } from "./public-web-client.ts";
@@ -39,6 +41,14 @@ export interface ComposedSignal {
 	signal: AbortSignal;
 	cleanup: () => void;
 }
+
+export type PublicWebDnsLookup = (hostname: string) => Promise<readonly LookupAddress[]>;
+
+interface FetchInitWithDispatcher extends RequestInit {
+	dispatcher?: Dispatcher;
+}
+
+const defaultPublicWebDispatcher = createPublicWebDispatcher(defaultPublicWebDnsLookup);
 
 export class OperationTimeoutError extends Error {
 	readonly _tag = "OperationTimeout" as const;
@@ -87,16 +97,30 @@ export async function fetchWithRedirects(
 
 	while (true) {
 		assertUrlHasNoCredentials(currentUrl);
-		if (options.blockPrivateHosts) {
-			await assertPublicUrl(currentUrl);
-		}
-
-		const response = await fetch(currentUrl, {
+		const init: FetchInitWithDispatcher = {
 			method: "GET",
 			headers: options.headers,
 			signal: options.signal,
 			redirect: "manual",
-		});
+		};
+		if (options.blockPrivateHosts) {
+			assertPublicUrlLiteral(currentUrl);
+			init.dispatcher = defaultPublicWebDispatcher;
+		}
+
+		let response: Response;
+		try {
+			response = await fetch(currentUrl, init);
+		} catch (cause: unknown) {
+			const blocked = findPublicWebLookupError(cause);
+			if (blocked === "PrivateHostBlocked") {
+				throw new Error("Blocked private or local host");
+			}
+			if (blocked === "PrivateIpBlocked") {
+				throw new Error("Blocked private or local IP address");
+			}
+			throw cause;
+		}
 
 		if (isRedirectStatus(response.status)) {
 			await response.body?.cancel().catch(() => undefined);
@@ -219,27 +243,13 @@ export function normalizeCharset(charset: string | undefined): string | undefine
 	return normalized;
 }
 
-async function assertPublicUrl(url: URL): Promise<void> {
+function assertPublicUrlLiteral(url: URL): void {
 	const hostname = stripIpv6Brackets(url.hostname).toLowerCase();
 	if (isBlockedHostname(hostname)) {
 		throw new Error("Blocked private or local host");
 	}
 	if (isPrivateOrLocalIp(hostname)) {
 		throw new Error("Blocked private or local IP address");
-	}
-
-	try {
-		const records = await lookup(hostname, { all: true, verbatim: true });
-		for (const record of records) {
-			if (isPrivateOrLocalIp(record.address)) {
-				throw new Error("Blocked private or local IP address");
-			}
-		}
-	} catch (error) {
-		if (error instanceof Error && error.message === "Blocked private or local IP address") {
-			throw error;
-		}
-		// If DNS resolution fails, let the later fetch surface the real connectivity error.
 	}
 }
 
@@ -379,12 +389,20 @@ function parseIpv6Hex16(segment: string | undefined): number | undefined {
 }
 
 export class FetchPublicWebClient implements PublicWebClient {
+	private readonly publicDispatcher: Dispatcher;
+
+	constructor(dependencies: { readonly dnsLookup?: PublicWebDnsLookup } = {}) {
+		this.publicDispatcher = dependencies.dnsLookup
+			? createPublicWebDispatcher(dependencies.dnsLookup)
+			: defaultPublicWebDispatcher;
+	}
+
 	/** Fetch a bounded public web response, following safe redirects. */
 	async get(
 		request: PublicWebRequest,
 		options: { readonly signal?: AbortSignal } = {},
 	): Promise<Result<PublicWebResponse, PublicWebError>> {
-		const firstFetch = await fetchWithUserAgent(request, request.userAgent, options.signal);
+		const firstFetch = await fetchWithUserAgent(request, request.userAgent, options.signal, this.publicDispatcher);
 		if (firstFetch._tag === "err") {
 			return firstFetch;
 		}
@@ -393,7 +411,7 @@ export class FetchPublicWebClient implements PublicWebClient {
 		let finalUrl = firstFetch.value.finalUrl;
 		if (isCloudflareChallenge(response)) {
 			await response.body?.cancel().catch(() => undefined);
-			const retryFetch = await fetchWithUserAgent(request, request.fallbackUserAgent, options.signal);
+			const retryFetch = await fetchWithUserAgent(request, request.fallbackUserAgent, options.signal, this.publicDispatcher);
 			if (retryFetch._tag === "err") {
 				return retryFetch;
 			}
@@ -441,7 +459,8 @@ export class FetchPublicWebClient implements PublicWebClient {
 async function fetchWithUserAgent(
 	request: PublicWebRequest,
 	userAgent: string,
-	signal?: AbortSignal,
+	signal: AbortSignal | undefined,
+	publicDispatcher: Dispatcher,
 ): Promise<Result<{ readonly response: Response; readonly finalUrl: PublicHttpUrl }, PublicWebError>> {
 	let currentUrl = new URL(request.url);
 	let redirects = 0;
@@ -456,24 +475,30 @@ async function fetchWithUserAgent(
 			return currentPublicUrl;
 		}
 
+		const init: FetchInitWithDispatcher = {
+			method: "GET",
+			headers: createPublicWebHeaders(request.accept, userAgent),
+			signal,
+			redirect: "manual",
+		};
 		if (request.blockPrivateHosts) {
-			const publicCheck = await checkPublicUrl(currentUrl, currentPublicUrl.value);
+			const publicCheck = checkPublicHostnameLiteral(currentUrl, currentPublicUrl.value);
 			if (publicCheck._tag === "err") {
 				return publicCheck;
 			}
+			init.dispatcher = publicDispatcher;
 		}
 
 		let response: Response;
 		try {
-			response = await fetch(currentUrl, {
-				method: "GET",
-				headers: createPublicWebHeaders(request.accept, userAgent),
-				signal,
-				redirect: "manual",
-			});
+			response = await fetch(currentUrl, init);
 		} catch (cause: unknown) {
 			if (signal?.aborted || isAbortError(cause)) {
 				return err(signal ? classifySignalAbort(signal, cause) : { _tag: "PublicWebCancelled", cause });
+			}
+			const blocked = findPublicWebLookupError(cause);
+			if (blocked) {
+				return err(toBlockedPublicWebError(blocked, currentPublicUrl.value));
 			}
 			return err({ _tag: "PublicWebRequestFailed", cause });
 		}
@@ -514,7 +539,108 @@ function createPublicWebHeaders(accept: string, userAgent: string): Record<strin
 	};
 }
 
-async function checkPublicUrl(url: URL, publicUrl: PublicHttpUrl): Promise<Result<void, PublicWebError>> {
+function createPublicWebDispatcher(lookup: PublicWebDnsLookup): Dispatcher {
+	return new Agent({
+		connect: {
+			lookup(
+				hostname: string,
+				options: LookupOptions,
+				callback: (error: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void,
+			) {
+				lookupPublicAddresses(hostname, normalizeLookupFamily(options.family), lookup)
+					.then((records) => {
+						if (options.all) {
+							callback(null, [...records]);
+							return;
+						}
+						const record = records[0];
+						if (!record) {
+							callback(new Error(`No DNS records found for ${hostname}`), "", 0);
+							return;
+						}
+						callback(null, record.address, record.family);
+					})
+					.catch((cause: unknown) => callback(toLookupCallbackError(cause), "", 0));
+			},
+		},
+	});
+}
+
+async function lookupPublicAddresses(
+	hostname: string,
+	family: number | undefined,
+	lookup: PublicWebDnsLookup,
+): Promise<readonly LookupAddress[]> {
+	const normalizedHostname = stripIpv6Brackets(hostname).toLowerCase();
+	if (isBlockedHostname(normalizedHostname)) {
+		throw new PublicWebLookupBlockedError("PrivateHostBlocked");
+	}
+	if (isPrivateOrLocalIp(normalizedHostname)) {
+		throw new PublicWebLookupBlockedError("PrivateIpBlocked");
+	}
+
+	const records = await lookup(hostname);
+	for (const record of records) {
+		if (isPrivateOrLocalIp(record.address)) {
+			throw new PublicWebLookupBlockedError("PrivateIpBlocked");
+		}
+	}
+
+	const matchingRecords = family === 4 || family === 6
+		? records.filter((record) => record.family === family)
+		: records;
+	if (matchingRecords.length === 0) {
+		throw new Error(`No DNS records found for ${hostname}`);
+	}
+	return matchingRecords;
+}
+
+function defaultPublicWebDnsLookup(hostname: string): Promise<readonly LookupAddress[]> {
+	return dnsLookup(hostname, { all: true, verbatim: true });
+}
+
+function normalizeLookupFamily(family: LookupOptions["family"]): number | undefined {
+	if (family === "IPv4") return 4;
+	if (family === "IPv6") return 6;
+	return family;
+}
+
+function toLookupCallbackError(cause: unknown): NodeJS.ErrnoException {
+	return cause instanceof Error ? cause : new Error(String(cause));
+}
+
+type PublicWebLookupBlockReason = "PrivateHostBlocked" | "PrivateIpBlocked";
+
+class PublicWebLookupBlockedError extends Error {
+	constructor(readonly reason: PublicWebLookupBlockReason) {
+		super(reason);
+		this.name = "PublicWebLookupBlockedError";
+	}
+}
+
+function findPublicWebLookupError(cause: unknown): PublicWebLookupBlockReason | undefined {
+	if (cause instanceof PublicWebLookupBlockedError) {
+		return cause.reason;
+	}
+	if (cause instanceof AggregateError) {
+		for (const error of cause.errors) {
+			const reason = findPublicWebLookupError(error);
+			if (reason) return reason;
+		}
+	}
+	if (typeof cause === "object" && cause !== null && "cause" in cause) {
+		return findPublicWebLookupError(cause.cause);
+	}
+	return undefined;
+}
+
+function toBlockedPublicWebError(reason: PublicWebLookupBlockReason, url: PublicHttpUrl): PublicWebError {
+	return reason === "PrivateHostBlocked"
+		? { _tag: "PrivateHostBlocked", url }
+		: { _tag: "PrivateIpBlocked", url };
+}
+
+function checkPublicHostnameLiteral(url: URL, publicUrl: PublicHttpUrl): Result<void, PublicWebError> {
 	const hostname = stripIpv6Brackets(url.hostname).toLowerCase();
 	if (isBlockedHostname(hostname)) {
 		return err({ _tag: "PrivateHostBlocked", url: publicUrl });
@@ -522,18 +648,6 @@ async function checkPublicUrl(url: URL, publicUrl: PublicHttpUrl): Promise<Resul
 	if (isPrivateOrLocalIp(hostname)) {
 		return err({ _tag: "PrivateIpBlocked", url: publicUrl });
 	}
-
-	try {
-		const records = await lookup(hostname, { all: true, verbatim: true });
-		for (const record of records) {
-			if (isPrivateOrLocalIp(record.address)) {
-				return err({ _tag: "PrivateIpBlocked", url: publicUrl });
-			}
-		}
-	} catch {
-		// If DNS resolution fails, let fetch surface the connectivity failure.
-	}
-
 	return ok(undefined);
 }
 
