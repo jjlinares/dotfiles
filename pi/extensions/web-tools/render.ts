@@ -20,7 +20,7 @@ export function appendExpandedPreview(
 	const maxColumns = options.maxColumns ?? 200;
 	const lines = text.split("\n");
 	for (const line of lines.slice(0, maxLines)) {
-		base += `\n${theme.fg("dim", line.slice(0, maxColumns))}`;
+		base += `\n${theme.fg("dim", sanitizePreviewText(line).slice(0, maxColumns))}`;
 	}
 	if (lines.length > maxLines) {
 		base += `\n${theme.fg("muted", "...")}`;
@@ -28,7 +28,14 @@ export function appendExpandedPreview(
 	return base;
 }
 
+export function sanitizePreviewText(text: string): string {
+	return text.replace(ANSI_ESCAPE_RE, "").replace(CONTROL_RE, "");
+}
+
 export function appendExpandHint(base: string, expanded: boolean): string {
 	if (expanded) return base;
 	return `${base} ${keyHint("app.tools.expand" as any, "for details")}`;
 }
+
+const ANSI_ESCAPE_RE = /[\u001b\u009b][[\]()#;?]*(?:(?:(?:[a-zA-Z\d]*(?:;[a-zA-Z\d]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]))/g;
+const CONTROL_RE = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g;

@@ -31,6 +31,10 @@ interface RenderTheme {
 	bold(value: string): string;
 }
 
+interface RenderContext {
+	readonly isError?: boolean;
+}
+
 type WebSearchBoundaryError = ToolInputParseError | ParseSearchQueryError | SearchWebError | ToolOutputStoreError;
 
 export function createWebSearchTool(composition?: WebSearchToolComposition) {
@@ -112,11 +116,12 @@ export function createWebSearchTool(composition?: WebSearchToolComposition) {
 			result: { content: Array<{ type: string; text?: string }>; details?: WebSearchDetails; isError?: boolean },
 			options: { expanded: boolean; isPartial: boolean },
 			theme: RenderTheme,
+			context?: RenderContext,
 		) {
 			if (options.isPartial) {
 				return new Text(theme.fg("warning", "Searching..."), 0, 0);
 			}
-			if (result.isError) {
+			if (context?.isError || result.isError) {
 				return new Text(theme.fg("error", `✗ ${getTextContent(result.content) || "Search failed"}`), 0, 0);
 			}
 

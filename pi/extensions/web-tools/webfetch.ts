@@ -34,6 +34,10 @@ interface RenderTheme {
 	bold(value: string): string;
 }
 
+interface RenderContext {
+	readonly isError?: boolean;
+}
+
 type WebFetchBoundaryError = ToolInputParseError | ParsePublicHttpUrlError | FetchPageError | ToolOutputStoreError;
 
 export function createWebFetchTool(composition?: WebFetchToolComposition) {
@@ -120,11 +124,12 @@ export function createWebFetchTool(composition?: WebFetchToolComposition) {
 			result: { content: Array<{ type: string; text?: string }>; details?: WebFetchDetails; isError?: boolean },
 			options: { expanded: boolean; isPartial: boolean },
 			theme: RenderTheme,
+			context?: RenderContext,
 		) {
 			if (options.isPartial) {
 				return new Text(theme.fg("warning", "Fetching..."), 0, 0);
 			}
-			if (result.isError) {
+			if (context?.isError || result.isError) {
 				return new Text(theme.fg("error", `✗ ${getTextContent(result.content) || "Fetch failed"}`), 0, 0);
 			}
 
