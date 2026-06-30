@@ -189,7 +189,9 @@ function renderSafeWebSearchError(error: WebSearchBoundaryError): string {
 		case "EmptySearchQuery":
 			return "Search query cannot be empty";
 		case "SearchDisabled":
-			return "websearch is disabled in web-tools settings. Enable it to use this tool.";
+			return error.reason === "MissingApiKey"
+				? "websearch is disabled because PI_WEB_TOOLS_BRAVE_API_KEY is not set."
+				: "websearch is disabled by PI_WEB_TOOLS_SEARCH_ENABLED=off.";
 		case "SearchProviderUnavailable":
 			return "Search provider unavailable";
 		case "SearchProviderStatusRejected":

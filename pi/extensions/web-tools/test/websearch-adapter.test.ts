@@ -71,3 +71,20 @@ test("websearch execute throws safe message for provider protocol failures", asy
 		/Search provider returned an invalid response/,
 	);
 });
+
+test("websearch execute tells users to set the Brave API key when missing", async () => {
+	const disabledSettings: WebToolsSettings = {
+		...settings,
+		search: { ...settings.search, enabled: false, apiKey: "" },
+	};
+	const searchWeb = new SearchWeb({
+		settings: disabledSettings.search,
+		provider: new FakeProvider(ok([])),
+	});
+	const tool = createWebSearchTool({ settings: disabledSettings, searchWeb, outputStore: new UnusedOutputStore() });
+
+	await assert.rejects(
+		tool.execute("id", { query: "example" }),
+		/PI_WEB_TOOLS_BRAVE_API_KEY is not set/,
+	);
+});

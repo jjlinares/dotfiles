@@ -14,7 +14,9 @@ export interface SearchWebResult {
 	readonly results: readonly NormalizedSearchResult[];
 }
 
-export type SearchWebError = { readonly _tag: "SearchDisabled" } | SearchProviderError;
+export type SearchDisabledReason = "MissingApiKey" | "DisabledBySetting";
+
+export type SearchWebError = { readonly _tag: "SearchDisabled"; readonly reason: SearchDisabledReason } | SearchProviderError;
 
 export interface SearchWebDependencies {
 	readonly provider: SearchProvider;
@@ -30,7 +32,10 @@ export class SearchWeb {
 		options: { readonly signal?: AbortSignal } = {},
 	): Promise<Result<SearchWebResult, SearchWebError>> {
 		if (!this.dependencies.settings.enabled) {
-			return err({ _tag: "SearchDisabled" });
+			return err({
+				_tag: "SearchDisabled",
+				reason: this.dependencies.settings.apiKey ? "DisabledBySetting" : "MissingApiKey",
+			});
 		}
 
 		const providerResult = await this.dependencies.provider.search(input, { signal: options.signal });

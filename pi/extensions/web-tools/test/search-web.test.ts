@@ -52,3 +52,33 @@ test("SearchWeb returns provider results with query metadata", async () => {
 	assert.equal(result.value.query, "example");
 	assert.equal(result.value.results.length, 1);
 });
+
+test("SearchWeb reports missing API key without calling provider", async () => {
+	const query = parseSearchQuery("example");
+	assert.equal(query._tag, "ok");
+	const provider = new FakeSearchProvider(ok([]));
+	const service = new SearchWeb({
+		provider,
+		settings: { ...testSearchSettings, enabled: false, apiKey: "" },
+	});
+
+	const result = await service.search({ query: query.value, maxResults: 8 });
+
+	assert.deepEqual(result, { _tag: "err", error: { _tag: "SearchDisabled", reason: "MissingApiKey" } });
+	assert.deepEqual(provider.requests, []);
+});
+
+test("SearchWeb reports explicit disabled setting without calling provider", async () => {
+	const query = parseSearchQuery("example");
+	assert.equal(query._tag, "ok");
+	const provider = new FakeSearchProvider(ok([]));
+	const service = new SearchWeb({
+		provider,
+		settings: { ...testSearchSettings, enabled: false, apiKey: "test-key" },
+	});
+
+	const result = await service.search({ query: query.value, maxResults: 8 });
+
+	assert.deepEqual(result, { _tag: "err", error: { _tag: "SearchDisabled", reason: "DisabledBySetting" } });
+	assert.deepEqual(provider.requests, []);
+});
