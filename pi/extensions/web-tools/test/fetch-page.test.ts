@@ -56,6 +56,71 @@ test("FetchPage converts HTML to markdown when requested", async () => {
 	assert.match(result.value._tag === "Text" ? result.value.text : "", /World/);
 });
 
+test("FetchPage includes Defuddle metadata for HTML markdown responses", async () => {
+	const publicWeb = new FakePublicWebClient(
+		ok(
+			response(
+				"text/html; charset=utf-8",
+				`<html lang="en">
+					<head>
+						<title>Example title</title>
+						<meta name="description" content="Example description">
+						<meta name="author" content="Jane Doe">
+						<meta property="og:site_name" content="Example Site">
+						<meta property="article:published_time" content="2024-01-02T00:00:00Z">
+						<meta property="og:image" content="https://example.com/image.png">
+						<link rel="canonical" href="https://example.com/canonical">
+					</head>
+					<body><main><h1>Hello</h1><p>World</p></main></body>
+				</html>`,
+			),
+		),
+	);
+	const service = new FetchPage({ publicWeb, settings: testFetchSettings });
+
+	const result = await service.fetch({ url: requestUrl, format: "markdown" });
+
+	assert.equal(result._tag, "ok");
+	assert.equal(result.value._tag, "Text");
+	assert.deepEqual(result.value._tag === "Text" ? result.value.metadata : undefined, {
+		title: "Example title",
+		description: "Example description",
+		author: "Jane Doe",
+		siteName: "Example Site",
+		published: "2024-01-02T00:00:00Z",
+		canonicalUrl: "https://example.com/canonical",
+		image: "https://example.com/image.png",
+		language: "en",
+	});
+});
+
+test("FetchPage omits unsafe metadata URLs", async () => {
+	const publicWeb = new FakePublicWebClient(
+		ok(
+			response(
+				"text/html; charset=utf-8",
+				`<html>
+					<head>
+						<title>Unsafe URLs</title>
+						<meta property="og:image" content="data:text/html,evil">
+						<link rel="canonical" href="javascript:alert(1)">
+					</head>
+					<body><main><h1>Hello</h1><p>World</p></main></body>
+				</html>`,
+			),
+		),
+	);
+	const service = new FetchPage({ publicWeb, settings: testFetchSettings });
+
+	const result = await service.fetch({ url: requestUrl, format: "markdown" });
+
+	assert.equal(result._tag, "ok");
+	assert.equal(result.value._tag, "Text");
+	const metadata = result.value._tag === "Text" ? result.value.metadata : undefined;
+	assert.equal(metadata?.canonicalUrl, undefined);
+	assert.equal(metadata?.image, undefined);
+});
+
 test("FetchPage returns raster image content", async () => {
 	const publicWeb = new FakePublicWebClient(ok(response("image/png", Buffer.from([1, 2, 3]))));
 	const service = new FetchPage({ publicWeb, settings: testFetchSettings });

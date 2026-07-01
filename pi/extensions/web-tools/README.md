@@ -31,6 +31,7 @@ Behavior notes:
 - private/local hosts and IPs are blocked by default
 - raster images (`png`, `jpeg`, `gif`, `webp`) are returned inline as images
 - HTML is converted to markdown or text when requested
+- markdown HTML fetches include best-effort Defuddle metadata in `details.metadata`
 - binary content is rejected
 - if a site returns `403` with `cf-mitigated: challenge`, the tool retries with the fallback user agent
 

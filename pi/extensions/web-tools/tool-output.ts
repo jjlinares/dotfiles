@@ -90,6 +90,7 @@ export async function projectFetchPageResultToPiToolResult(
 			charset: result.charset,
 			decoder: result.decoder,
 			bytes: result.bytes,
+			...(result.metadata ? { metadata: result.metadata } : {}),
 			truncated: truncated.value.truncated,
 			fullOutputPath: truncated.value.fullOutputPath,
 		},

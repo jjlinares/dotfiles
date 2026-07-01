@@ -47,6 +47,17 @@ export interface ParsedContentType {
 	readonly kind: ContentKind;
 }
 
+export interface WebFetchMetadata {
+	readonly title?: string;
+	readonly description?: string;
+	readonly author?: string;
+	readonly siteName?: string;
+	readonly published?: string;
+	readonly canonicalUrl?: string;
+	readonly image?: string;
+	readonly language?: string;
+}
+
 export interface WebFetchDetails {
 	readonly requestedUrl: string;
 	readonly finalUrl: string;
@@ -58,6 +69,7 @@ export interface WebFetchDetails {
 	readonly decoder?: string;
 	readonly bytes: number;
 	readonly image?: boolean;
+	readonly metadata?: WebFetchMetadata;
 	readonly truncated?: boolean;
 	readonly fullOutputPath?: string;
 }

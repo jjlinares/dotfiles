@@ -22,6 +22,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "defuddle": "^0.19.1",
     "html-to-text": "^9.0.5",
     "linkedom": "^0.18.12",
     "turndown": "^7.2.0",

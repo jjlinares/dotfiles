@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ok, type Result } from "../result.ts";
 import {
+	projectFetchPageResultToPiToolResult,
 	projectSearchWebResultToPiToolResult,
 	type ToolOutputStore,
 	type ToolOutputStoreError,
@@ -22,6 +23,32 @@ class RecordingToolOutputStore implements ToolOutputStore {
 		return ok(this.outputPath);
 	}
 }
+
+test("projectFetchPageResultToPiToolResult preserves metadata", async () => {
+	const url = parsePublicHttpUrl("https://example.com/");
+	assert.equal(url._tag, "ok");
+	const store = new RecordingToolOutputStore("/tmp/full-output.txt");
+
+	const result = await projectFetchPageResultToPiToolResult(
+		{
+			_tag: "Text",
+			requestedUrl: url.value,
+			finalUrl: url.value,
+			format: "markdown",
+			status: 200,
+			mime: "text/html",
+			contentType: "text/html",
+			decoder: "utf-8",
+			bytes: 12,
+			text: "# Example",
+			metadata: { title: "Example" },
+		},
+		store,
+	);
+
+	assert.equal(result._tag, "ok");
+	assert.deepEqual(result.value.details.metadata, { title: "Example" });
+});
 
 test("projectSearchWebResultToPiToolResult truncates and records full output path", async () => {
 	const query = parseSearchQuery("example");

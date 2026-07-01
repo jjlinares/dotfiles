@@ -1,8 +1,10 @@
+import { Defuddle, type DefuddleResponse } from "defuddle/node";
+import { parseHTML } from "linkedom";
 import { htmlToMarkdown, htmlToText, isPoorMarkdownConversion } from "./html.ts";
 import { decodeTextBuffer, parseContentType } from "./network.ts";
 import type { PublicWebClient, PublicWebError } from "./public-web-client.ts";
 import { err, ok, type Result } from "./result.ts";
-import type { PublicHttpUrl, WebFetchFormat, WebToolsSettings } from "./types.ts";
+import type { PublicHttpUrl, WebFetchFormat, WebFetchMetadata, WebToolsSettings } from "./types.ts";
 
 export const WEBFETCH_DEFAULT_USER_AGENT =
 	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
@@ -26,6 +28,7 @@ export type FetchPageResult =
 			readonly decoder: string;
 			readonly bytes: number;
 			readonly text: string;
+			readonly metadata?: WebFetchMetadata;
 	  }
 	| {
 			readonly _tag: "Image";
@@ -100,6 +103,7 @@ export class FetchPage {
 		if (converted._tag === "err") {
 			return converted;
 		}
+		const metadata = await extractMarkdownMetadata(decoded.text, response.value.finalUrl, parsedContentType.kind, input.format);
 
 		return ok({
 			_tag: "Text",
@@ -113,6 +117,7 @@ export class FetchPage {
 			decoder: decoded.decoder,
 			bytes: response.value.bytes,
 			text: converted.value,
+			...(metadata ? { metadata } : {}),
 		});
 	}
 }
@@ -167,4 +172,79 @@ function convertText(
 	} catch (cause: unknown) {
 		return err({ _tag: "HtmlConversionFailed", cause });
 	}
+}
+
+async function extractMarkdownMetadata(
+	html: string,
+	baseUrl: PublicHttpUrl,
+	kind: "html" | "text" | "svg",
+	format: WebFetchFormat,
+): Promise<WebFetchMetadata | undefined> {
+	if (kind !== "html" || format !== "markdown") return undefined;
+
+	try {
+		const { document } = parseHTML(html);
+		const canonicalUrl = getCanonicalUrl(document, baseUrl);
+		setDocumentUrl(document, baseUrl);
+		const extracted = await Defuddle(document, baseUrl, { useAsync: false });
+		return normalizeDefuddleMetadata(extracted, baseUrl, canonicalUrl);
+	} catch {
+		return undefined;
+	}
+}
+
+function normalizeDefuddleMetadata(
+	extracted: DefuddleResponse,
+	baseUrl: PublicHttpUrl,
+	canonicalUrl?: string,
+): WebFetchMetadata | undefined {
+	const title = nonEmpty(extracted.title);
+	const description = nonEmpty(extracted.description);
+	const author = nonEmpty(extracted.author);
+	const siteName = nonEmpty(extracted.site);
+	const published = nonEmpty(extracted.published);
+	const image = normalizeUrl(extracted.image, baseUrl);
+	const language = nonEmpty(extracted.language);
+	const metadata: WebFetchMetadata = {
+		...(title ? { title } : {}),
+		...(description ? { description } : {}),
+		...(author ? { author } : {}),
+		...(siteName ? { siteName } : {}),
+		...(published ? { published } : {}),
+		...(canonicalUrl ? { canonicalUrl } : {}),
+		...(image ? { image } : {}),
+		...(language ? { language } : {}),
+	};
+	return Object.keys(metadata).length > 0 ? metadata : undefined;
+}
+
+function getCanonicalUrl(document: Document, baseUrl: PublicHttpUrl): string | undefined {
+	const href = document.querySelector('link[rel~="canonical"][href]')?.getAttribute("href");
+	return normalizeUrl(href, baseUrl);
+}
+
+function setDocumentUrl(document: Document, url: PublicHttpUrl): void {
+	try {
+		const mutableDocument = document as unknown as { URL: string; location?: URL };
+		mutableDocument.URL = url;
+		mutableDocument.location = new URL(url);
+	} catch {
+		// Metadata extraction is best-effort.
+	}
+}
+
+function normalizeUrl(value: string | undefined | null, baseUrl: PublicHttpUrl): string | undefined {
+	const trimmed = nonEmpty(value);
+	if (!trimmed) return undefined;
+	try {
+		const url = new URL(trimmed, baseUrl);
+		return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function nonEmpty(value: string | undefined | null): string | undefined {
+	const trimmed = value?.trim();
+	return trimmed || undefined;
 }
