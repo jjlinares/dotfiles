@@ -1,0 +1,12 @@
+id = "local.vscode-workspace"
+name = "VS Code Workspace"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+description = "Open or focus the current Herdr workspace in VS Code"
+platforms = ["linux"]
+
+[[actions]]
+id = "open"
+title = "Open workspace in VS Code"
+contexts = ["workspace"]
+command = ["bash", "open-vscode.sh"]

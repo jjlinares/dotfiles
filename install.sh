@@ -105,6 +105,7 @@ backup_and_link "$DOTFILES_DIR/git/ignore" "$HOME/.config/git/ignore"
 bash "$DOTFILES_DIR/claude/setup.sh"
 bash "$DOTFILES_DIR/codex/setup.sh"
 bash "$DOTFILES_DIR/pi/setup.sh"
+bash "$DOTFILES_DIR/herdr/setup.sh"
 
 # Cursor configs
 log "Setting up Cursor configs..."

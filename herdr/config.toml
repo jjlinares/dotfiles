@@ -1,0 +1,8 @@
+[ui]
+agent_panel_sort = "spaces"
+
+[[keys.command]]
+key = "prefix+v"
+type = "plugin_action"
+command = "local.vscode-workspace.open"
+description = "open workspace in VS Code"
