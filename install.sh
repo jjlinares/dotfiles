@@ -106,6 +106,7 @@ bash "$DOTFILES_DIR/claude/setup.sh"
 bash "$DOTFILES_DIR/codex/setup.sh"
 bash "$DOTFILES_DIR/pi/setup.sh"
 bash "$DOTFILES_DIR/herdr/setup.sh"
+bash "$DOTFILES_DIR/kde/setup.sh"
 bash "$DOTFILES_DIR/vscode/setup.sh"
 
 # Cursor configs

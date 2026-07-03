@@ -17,6 +17,7 @@ git clone https://github.com/jjlinares/dotfiles.git ~/dotfiles && ~/dotfiles/ins
 | `agents/` | Shared `AGENTS.md`, agent prompts, and skills |
 | `claude/` | Claude-specific config (symlinked into `~/.claude`) |
 | `codex/` | Codex setup helpers |
+| `kde/` | KDE Plasma shortcut setup |
 | `pi/` | Pi Coding Agent setup helpers |
 | `cursor/` | Cursor IDE settings, keybindings, extensions |
 | `vscode/` | VS Code extensions |
@@ -91,6 +92,8 @@ dotfiles/
 ├── claude/
 │   └── settings.json
 ├── codex/
+│   └── setup.sh
+├── kde/
 │   └── setup.sh
 ├── pi/
 │   └── setup.sh
