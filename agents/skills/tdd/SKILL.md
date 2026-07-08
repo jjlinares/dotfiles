@@ -40,6 +40,44 @@ RIGHT (vertical):
   ...
 ```
 
+## Engineering Constraints
+
+TDD is not permission to build a framework around the test. Red-green-refactor only works when each cycle stays small, literal, and reversible.
+
+### Simplicity First
+
+**Minimum code that satisfies the current behavior. Nothing speculative.**
+
+During GREEN:
+
+- No features beyond the behavior under test
+- No abstractions for single-use code
+- No flexibility/configuration unless the current test requires it
+- No defensive error handling for impossible scenarios
+- Prefer direct, obvious implementation over clever generality
+- Sort functions by importance: exported/main functions first, helpers below
+- If the passing implementation is bloated, rewrite it before adding the next test
+
+Ask: "Would a senior engineer say this is overcomplicated for the behavior currently under test?" If yes, simplify.
+
+### Surgical Changes
+
+**Touch only what the current red-green-refactor cycle requires. Clean up only your own mess.**
+
+When editing existing code:
+
+- Don't improve adjacent code, comments, or formatting
+- Don't refactor unrelated code while making the test pass
+- Match existing style, even if you'd choose differently
+- If you notice unrelated dead code, mention it; don't delete it
+
+When your change creates orphans:
+
+- Remove imports, variables, functions, and tests made unused by your change
+- Don't remove pre-existing dead code unless asked
+
+The test: every changed line should trace directly to the current failing test or the refactor that follows it.
+
 ## Workflow
 
 ### 1. Planning
@@ -106,4 +144,6 @@ After all tests pass, look for [refactor candidates](refactoring.md):
 [ ] Test would survive internal refactor
 [ ] Code is minimal for this test
 [ ] No speculative features added
+[ ] No unrelated code/comments/formatting changed
+[ ] Any cleanup is limited to orphans created by this cycle
 ```
