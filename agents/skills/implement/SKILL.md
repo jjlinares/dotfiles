@@ -1,62 +1,54 @@
 ---
 name: implement
-description: This skill should be used when the user asks to "implement next phase", "continue feature work", "pick up where we left off", "implement phase N", or provides a feature folder path for implementation. Takes a feature PRD with phased delivery and implements the next incomplete phase.
+description: Use when the user asks to implement, build, fix, modify, or continue a concrete scoped code change; says "do it", "implement this", "pick up", "next step", or provides an issue/checklist/plan to complete.
 ---
 # Implement Skill
 
-Implements the next incomplete phase from a feature PRD.
+Implements a pre-agreed scope of work.
 
 ## Input
 
-User provides a feature folder path (e.g., `.agents/features/display-tools`). The folder must contain `prd.md` with delivery phases using checkboxes (`- [ ]` / `- [x]`).
+The user provides a concrete scope of work. The scope may come from a user message, issue, plan, PRD, checklist, or prior conversation.
 
-## Process
+If scope is unclear, stop and ask.
 
-1. Read `prd.md` and `learnings.md` (if it exists)
-2. Find the first phase with unchecked `- [ ]` items
-3. Implement the phase — write code, modify files
-4. Verify code quality using project-native commands:
-	- Run linting
-	- Run formatting checks (or formatter in check mode)
-	- Run type checks
-	- Discover commands from the repo (for example: `package.json` scripts, `Makefile`, tool config files, or documented project commands)
-	- Avoid hardcoding package managers or framework-specific commands when the project defines alternatives
-5. Mark completed items as `- [x]` in `prd.md`
-6. Append to `learnings.md` with decisions made during this phase
-7. Report what was done
-8. Provide a concise completion handoff that includes:
-	- What changed
-	- How to review the changes effectively
-	- Which checks and tests were run (with pass/fail status)
-	- How to manually test the feature when interactive validation is possible (for example: run the app, open the relevant UI screen, and perform a few actions that demonstrate the new behavior)
-	- What was updated in `prd.md` and `learnings.md`
+## Handoff
 
-## Learnings File
+End each invocation with a concise handoff. If the scope came from a checklist or implementation plan, mark completed steps as done before handing off.
 
-`learnings.md` sits alongside `prd.md`. It captures decisions that matter for future phases or review.
+- What changed
+- How to review effectively
+- Checks/tests run, with pass/fail status
+- Manual test guidance when relevant
+- Checklist/implementation plan steps marked done, if provided
+- Blockers, risks, or follow-up work
 
-**Write:** Architectural choices, tradeoffs, patterns established, gotchas, deviations from plan and why.
+## Engineering Constraints
 
-**Don't write:** Obvious observations, file paths already in the PRD, things discoverable by reading the code.
+Use the `tdd` skill when the change benefits from test-first work. Not every change needs TDD; skip it for trivial edits or when no useful pre-agreed seam exists.
 
-Format:
-```markdown
-# Learnings
+### Simplicity First
 
-## Phase N: <name>
-- Decision or insight
-- Decision or insight
-```
+**Minimum code that satisfies the agreed scope. Nothing speculative.**
 
-## Rules
+- No features beyond the agreed behavior
+- No abstractions for single-use code
+- No flexibility/configuration unless required
+- No defensive handling for impossible scenarios
+- Prefer direct, obvious implementation over clever generality
+- If the implementation is bloated, simplify before continuing
 
-- One phase per invocation
-- Read `learnings.md` before starting — prior decisions inform current work
-- Don't modify code outside the phase's scope
-- If blocked, explain why and stop — don't skip to the next phase
-- Always run linting, formatting, and type checks using the project's own tooling
-- Prefer check/verify commands over build commands unless the PRD explicitly requires a build
-- Do NOT generate migration files — note schema changes for user to push
-- Do NOT commit — leave that to the user
-- Include manual test steps in the handoff when feasible; if not feasible, state that clearly
-- End each invocation with a brief implementation handoff: summary of changes, best review path, checks/tests run, manual test guidance (when possible), and PRD/learnings updates
+Ask: "Would a senior engineer say this is overcomplicated for the agreed scope?" If yes, simplify.
+
+### Surgical Changes
+
+**Touch only what the agreed scope requires. Clean up only your own mess.**
+
+- Don't improve adjacent code, comments, or formatting
+- Don't refactor unrelated code
+- Match existing style, even if you'd choose differently
+- If you notice unrelated dead code, mention it; don't delete it
+- Remove imports, variables, functions, and tests made unused by your change
+- Don't remove pre-existing dead code unless asked
+
+Every changed line should trace directly to the agreed scope.
