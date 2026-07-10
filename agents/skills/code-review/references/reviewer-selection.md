@@ -1,4 +1,4 @@
-# Reviewer Selection
+# Code Reviewer Selection
 
 Select reviewers by changed surface area and user-requested depth. The orchestrator chooses the reviewer set unless the user explicitly names reviewers or focus areas. Do not run every reviewer by default. Narrow reviewers produce better signal.
 
@@ -59,7 +59,7 @@ Use higher thinking as an inline subagent override for harder analysis inside se
 - Do not launch architecture after a diff is already blocked by a clear P1 unless the user requested strict review.
 - Do not re-check linter/formatter/typechecker facts unless tooling is absent or the changed code bypasses tooling.
 
-## Reviewer profiles
+## Code Reviewer profiles
 
 Each reviewer is a `pi-subagents` profile. The profile owns the reviewer identity, trigger-facing `description`, system prompt, default thinking level, context mode, and tool defaults. The review run owns the dynamic task: target, context, protocol, allowed commands, and output handling.
 

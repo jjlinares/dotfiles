@@ -1,6 +1,6 @@
-# review
+# code-review
 
-`review` is an orchestrated review skill. It reviews a target, launches focused read-only review subagents, adjudicates their findings, and writes implementation-handoff plans for accepted issues.
+`code-review` is an orchestrated code review skill. It reviews a target, launches focused read-only review subagents, adjudicates their findings, and writes implementation-handoff plans for accepted issues.
 
 The skill is intentionally split into small pieces. Improve one piece at a time; do not rewrite the whole skill unless the core contract changes.
 
@@ -143,7 +143,7 @@ Improve this when the final response is too noisy or not actionable.
 
 ### 8. Real dry run
 
-Not a skill file. Track in `docs/plans/review-skill.md`.
+Not a skill file. Track in `docs/plans/code-review-skill.md`.
 
 Use real review runs to find where instructions are vague, where subagents over-report, and where plans fail as handoffs.
 

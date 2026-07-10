@@ -104,7 +104,7 @@ Stop and report back instead of improvising if:
 - <fix requires changing public contract beyond stated scope>
 - <spec/ADR contradicts the planned behavior>
 
-## Review notes
+## Code Review notes
 
 - Preserve <existing convention/pattern>.
 - Watch for <risk> in review.
@@ -131,7 +131,7 @@ A plan is not done until it has:
 Write `.agents/reviews/<run-id>/plans/README.md` with:
 
 ```markdown
-# Review plans
+# Code Review plans
 
 ## Execution order
 

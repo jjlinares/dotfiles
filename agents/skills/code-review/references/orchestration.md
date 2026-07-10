@@ -10,7 +10,7 @@ mkdir -p "$run_dir/reports" "$run_dir/plans"
 touch "$run_dir/findings.md" "$run_dir/report.md"
 repo="$(git rev-parse --show-toplevel)"
 run_abs="$repo/$run_dir"
-skill_dir="$(realpath ~/.agents/skills/review)"
+skill_dir="$(realpath ~/.agents/skills/code-review)"
 ```
 
 `target.md` must record `review_cwd`. For pinned targets this may be a detached worktree. For local targets it is the current repo.

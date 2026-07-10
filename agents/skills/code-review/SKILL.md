@@ -1,10 +1,10 @@
 ---
-name: review
+name: code-review
 description: This skill should be used when the user asks to "review local changes", "review this PR", "review my branch", "review a commit", "review the codebase", "run review subagents", "turn review findings into plans", or wants an orchestrated multi-perspective review across correctness, security, tests, architecture, conventions, and specs.
-version: 0.1.0
+disable-model-invocation: true
 ---
 
-# Review
+# Code Review
 
 Run an orchestrated review of a target. Treat subagents as lead generators, not judges. The orchestrator resolves the target, launches narrow read-only reviewers, validates every candidate finding, rejects noise, then writes implementation plans for accepted issues.
 
@@ -21,15 +21,13 @@ The first output adapter is **plans**. Future adapters may publish PR comments, 
 ## Core Contract
 
 - Default to review-only. Never edit source code, even when the user says "review and fix".
-- When asked to fix, complete the review, write plans for accepted findings, and recommend handing those plans to an implementation skill like `tdd` or executor.
-- Allow writes only under `.agents/reviews/<run-id>/` for manifests, reports, adjudication notes, and plans.
-- Resolve the target before launching reviewers. Never let subagents infer scope.
+- Resolve the target before launching reviewers. Never let subagents infer scope. For diff reviews, all reviewers use the same target manifest, diff scope, and commit list.
 - Review subagents are read-only by instruction, not sandbox. Restrict tools only on explicit user request or a concrete target-specific reason.
 - Treat every subagent finding as untrusted. Subagents do not vote; agreement between subagents is not evidence. Accept a finding only after independently verifying the code path, target provenance, trigger, and impact.
 - For diff targets, accept only issues introduced or exposed by the target.
 - For `codebase` target, accept pre-existing issues only when evidence, impact, and leverage are clear.
 - Prefer fewer high-confidence findings over completeness theater.
-- Write a plan for every accepted finding. If a candidate is not plan-worthy, reject it or mark it `needs-user-decision` instead of accepting it.
+- Write a plan for every accepted finding. If a candidate is not plan-worthy, reject it or mark it `needs-decision` instead of accepting it.
 - Never reproduce secret values. Cite location and credential type only; recommend rotation.
 
 ## Workflow
@@ -61,13 +59,11 @@ Record exact SHAs, diff/log commands, checkout path, changed files, PR/spec meta
 Read only context needed to judge the target:
 
 - Project instructions: `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `STYLE.md`, `STANDARDS.md`.
-- Domain docs: `docs/context.md`, `docs/context-map.md`, local context docs.
+- Docs: `docs/AGENTS.md`, local context docs.
 - Decisions: `docs/adr/**` and context-specific ADRs.
 - Specs: PR body, issue body, PRD, feature docs, branch-matching specs.
 - Tooling: package scripts, Makefile, test/lint/type configs.
 - Touched files, nearby callers, nearby tests.
-
-Write the useful facts into `context.md`: commands, conventions, spec sources, domain terms, risks, what was intentionally skipped.
 
 ### 4. Select reviewers
 
@@ -75,15 +71,15 @@ Use [`references/reviewer-selection.md`](references/reviewer-selection.md).
 
 Each reviewer is a YAML subagent profile under [`references/reviewers/`](references/reviewers/) as `<role>.yaml`. The profile owns reviewer identity, description, system prompt, default thinking level, context mode, and tool defaults.
 
-Always run `correctness-regression` unless the target is documentation-only. Add conditional reviewers for security, tests, standards, spec, silent failure, type contracts, architecture, performance, and docs/DX.
+Honor user-directed reviewer selection, whether they name reviewers or broader focus areas. Keep the reviewer set scoped to that request; ask when a requested reviewer or focus is unclear.
+
+When the user does not direct reviewer selection, always run `correctness-regression` unless the target is documentation-only. Add conditional reviewers for security, tests, standards, spec, silent failure, type contracts, architecture, performance, and docs/DX.
 
 Run focused reviewers only. A reviewer with no relevant trigger creates noise.
 
-Treat user-specified focus areas as reviewer-selection constraints. Examples: `security`, `tests`, `performance`, `docs`, `architecture`, or `strict`.
-
 - If the user asks for a thinking level, apply it as an inline override to selected reviewer profiles.
-- Do not widen scope just because a focus or thinking level was requested.
-- If the requested focus is irrelevant to the target, ask whether to run it anyway.
+- Do not widen scope just because reviewers, focus, or thinking level were requested.
+- If a requested reviewer/focus is irrelevant to the target, ask whether to run it anyway.
 
 ### 5. Launch subagents
 
@@ -124,10 +120,10 @@ Do not let subagents write final plans. Subagents provide leads; the orchestrato
 Final response shape:
 
 ```markdown
-## Review target
+## Code Review target
 - <target, base/head, checkout>
 
-## Reviewers run
+## Code Reviewers run
 - <role>: <reported>/<accepted>
 
 ## Accepted findings

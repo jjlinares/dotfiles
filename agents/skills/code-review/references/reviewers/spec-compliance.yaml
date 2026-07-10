@@ -18,4 +18,6 @@ appendSystemPrompt: |
   - incompatible interpretation of domain terms
   - implementation that appears to satisfy the spec but fails under a concrete scenario
 
-  Cite the requirement source and the changed code. Do not invent requirements. If the spec is ambiguous, report an open question or needs-user-decision, not a defect.
+  Cite the requirement source and the changed code. Do not invent requirements. 
+  If no requirement source supports the finding, it is not a spec finding. 
+  If the spec is ambiguous, report an open question or needs-decision, not a defect.
