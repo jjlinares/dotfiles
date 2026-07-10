@@ -1,6 +1,7 @@
 ---
 name: implement
 description: Use when the user asks to implement, build, fix, modify, or continue a concrete scoped code change; says "do it", "implement this", "pick up", "next step", or provides an issue/checklist/plan to complete.
+disable-model-invocation: true
 ---
 # Implement Skill
 
@@ -12,20 +13,20 @@ The user provides a concrete scope of work. The scope may come from a user messa
 
 If scope is unclear, stop and ask.
 
-## Handoff
+## Workflow
 
-End each invocation with a concise handoff. If the scope came from a checklist or implementation plan, mark completed steps as done before handing off.
-
-- What changed
-- How to review effectively
-- Checks/tests run, with pass/fail status
-- Manual test guidance when relevant
-- Checklist/implementation plan steps marked done, if provided
-- Blockers, risks, or follow-up work
+1. Confirm the agreed scope and definition of done when not explicit.
+2. Choose the implementation path:
+   - Use the `tdd` skill when test-first work makes sense: behavior changes, bug fixes with reproducible cases, complex logic, or integration paths.
+   - Skip TDD for trivial edits, mechanical refactors, docs/config-only changes, or when no useful pre-agreed seam exists.
+3. Implement only the agreed scope.
+4. Verify with project-appropriate checks/tests when feasible.
+5. For code changes, run the `code-review` skill with exact reviewers `standards-conventions` and `spec-compliance`. Treat the agreed scope as the requirements source.
+6. Fix accepted review findings that are within scope. If a finding requires scope expansion or a user decision, stop and ask.
+7. Mark completed checklist/plan items done when the scope came from a checklist or implementation plan.
+8. Hand off concisely.
 
 ## Engineering Constraints
-
-Use the `tdd` skill when the change benefits from test-first work. Not every change needs TDD; skip it for trivial edits or when no useful pre-agreed seam exists.
 
 ### Simplicity First
 
@@ -52,3 +53,15 @@ Ask: "Would a senior engineer say this is overcomplicated for the agreed scope?"
 - Don't remove pre-existing dead code unless asked
 
 Every changed line should trace directly to the agreed scope.
+
+## Handoff
+
+End each invocation with:
+
+- What changed
+- How to review effectively
+- Checks/tests run, with pass/fail status
+- Review findings fixed or left for decision
+- Manual test guidance when relevant
+- Checklist/implementation plan steps marked done, if provided
+- Blockers, risks, or follow-up work
