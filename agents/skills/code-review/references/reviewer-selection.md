@@ -4,21 +4,21 @@ Select reviewers by changed surface area and user-requested depth. The orchestra
 
 ## User-directed selection
 
-When the user explicitly requests reviewers or focus areas, honor that request and do not silently add unrelated reviewers. Keep `correctness-regression` only when code changed and it materially protects the requested review. If the requested reviewer is irrelevant to the target, say so and ask whether to run it anyway.
+When the user explicitly requests reviewers or focus areas, honor that request and do not silently add unrelated reviewers. An explicitly exclusive reviewer set overrides all defaults. Otherwise, keep `correctness-regression` only when the target is behavior-affecting and it materially protects the requested review. If the requested reviewer is irrelevant to the target, say so and ask whether to run it anyway.
 
 Examples:
 
-- `review security` → run `security-boundary` plus correctness only if code changed.
+- `review security` → run `security-boundary` plus correctness only for behavior-affecting changes.
 - `review tests and architecture` → run `test-coverage` and `architecture-simplicity`; add correctness only if needed to evaluate changed behavior.
 - `review only docs-dx` → run `docs-dx` only.
 
 ## Default set
 
-When the user does not name reviewers, always run:
+When the user does not name reviewers, run:
 
-- `correctness-regression` for code changes.
+- `correctness-regression` for behavior-affecting changes, including code, executable configuration, schemas, migrations, generated metadata, and executable documentation examples.
 
-Skip all code reviewers for docs-only changes unless docs contain executable examples, setup commands, config, or API contracts.
+Skip `correctness-regression` for docs-only or cosmetic-only changes.
 
 ## Conditional reviewers
 

@@ -72,8 +72,6 @@ Each reviewer is a YAML subagent profile under [`references/reviewers/`](referen
 
 Honor user-directed reviewer selection, whether they name reviewers or broader focus areas. Keep the reviewer set scoped to that request; ask when a requested reviewer or focus is unclear.
 
-When the user does not direct reviewer selection, always run `correctness-regression` unless the target is documentation-only. Add conditional reviewers for security, tests, standards, spec, silent failure, type contracts, architecture, performance, and docs/DX.
-
 Run focused reviewers only. A reviewer with no relevant trigger creates noise.
 
 - If the user asks for a thinking level, apply it as an inline override to selected reviewer profiles.
