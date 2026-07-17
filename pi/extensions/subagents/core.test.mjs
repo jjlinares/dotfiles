@@ -193,13 +193,14 @@ test("formatStatus lists runs and includes subagent details", async () => {
     startedAt: 1000,
     updatedAt: 2000,
     completedAt: 3000,
-    subagents: [{ id: "run1-0", index: 0, name: "review", state: "failed", preview: "bad", outputFile: output, stderrFile: stderr }],
+    subagents: [{ id: "run1-0", index: 0, name: "review", state: "failed", preview: "bad", sessionId: "session-123", resumeCommand: "(cd -- '/work/child' && pi --session session-123)", outputFile: output, stderrFile: stderr }],
   }));
 
   assert.match(formatStatus(undefined, root, 3000), /✗ run1 failed 1\/1 2s/);
   const detail = formatStatus(runDir, root, 3000);
   assert.match(detail, /## review — failed/);
   assert.match(detail, /bad/);
+  assert.match(detail, /cd -- '\/work\/child' && pi --session session-123/);
   assert.match(detail, /stderr:/);
   assert.match(detail, /result:/);
 });

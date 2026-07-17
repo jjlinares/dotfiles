@@ -61,6 +61,8 @@ export type RunStatus = {
 		model?: string;
 		thinking?: ThinkingLevel;
 		sessionFile?: string;
+		sessionId?: string;
+		resumeCommand?: string;
 		startedAt?: number;
 		completedAt?: number;
 		updatedAt?: number;
@@ -324,6 +326,7 @@ export function formatStatus(runDir?: string, root = RUN_ROOT, now = Date.now())
 	for (const task of status.subagents) {
 		lines.push(`\n## ${task.name} — ${task.state}`);
 		if (task.preview) lines.push(task.preview);
+		if (task.resumeCommand) lines.push(`resume: ${task.resumeCommand}`);
 		if (task.outputFile) lines.push(`output: ${task.outputFile}`);
 		if (task.stderrFile && fs.existsSync(task.stderrFile) && fs.statSync(task.stderrFile).size > 0) {
 			lines.push(`stderr: ${task.stderrFile}`);

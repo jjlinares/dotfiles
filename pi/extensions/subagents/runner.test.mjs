@@ -35,6 +35,8 @@ if (task.includes("slow")) {
 if (task.includes("many-jsonl")) {
   for (let i = 0; i < 20; i++) console.log(JSON.stringify({ type: "tool_execution_start", toolName: "read", args: { path: "file-" + i } }));
 }
+const sessionCwd = task.includes("session-cwd-different") ? "/session/project" : process.cwd();
+console.log(JSON.stringify({ type: "session", version: 3, id: "fake-session-id", timestamp: new Date().toISOString(), cwd: sessionCwd }));
 console.log(JSON.stringify({ type: "tool_execution_start", toolName: "read", args: { path: "README.md" } }));
 const message = {
   type: "message_end",
@@ -81,12 +83,15 @@ test("runner completes parallel subagents and writes aggregate result", async ()
   assert.equal(status.subagents[0].usage.input, 3);
   assert.equal(status.subagents[1].usage.output, 5);
   assert.equal(status.subagents[0].thinking, "high");
+  assert.equal(status.subagents[0].sessionId, "fake-session-id");
+  assert.equal(status.subagents[0].resumeCommand, `(cd -- '${dir}' && pi --session fake-session-id)`);
   assert.match(path.basename(status.subagents[0].outputFile), /^output-0-one\.md$/);
   assert.equal(await fs.readFile(path.join(runDir, "input-0-one.md"), "utf8"), "Task:\ninspect one\n");
   assert.match(await fs.readFile(status.subagents[0].outputFile, "utf8"), /result for Task: inspect one/);
 
   const aggregate = await fs.readFile(path.join(runDir, "result.md"), "utf8");
   assert.match(aggregate, /## one — complete/);
+  assert.ok(aggregate.includes(`> Resume: \`(cd -- '${dir}' && pi --session fake-session-id)\``));
   assert.match(aggregate, /result for Task: inspect one/);
   assert.match(aggregate, /## two — complete/);
 
@@ -96,6 +101,7 @@ test("runner completes parallel subagents and writes aggregate result", async ()
   assert.match(events, /--thinking/);
   assert.match(events, /high/);
   assert.doesNotMatch(events, /--append-system-prompt/);
+  assert.doesNotMatch(events, /--no-session/);
   assert.doesNotMatch(events, /child_event/);
   assert.equal(files.some((file) => file.startsWith("prompt-")), false);
 
@@ -104,6 +110,26 @@ test("runner completes parallel subagents and writes aggregate result", async ()
   assert.equal((await fs.stat(path.join(runDir, "result.md"))).mode & 0o777, 0o600);
   assert.equal((await fs.stat(status.subagents[0].outputFile)).mode & 0o777, 0o600);
   assert.equal((await fs.stat(path.join(runDir, "events.jsonl"))).mode & 0o777, 0o600);
+});
+
+test("runner builds resume commands from the persisted session cwd", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-runner-test-"));
+  const fakePi = await makeFakePi(dir);
+  const { runDir, configPath } = await writeConfig(dir, {
+    runId: "forkcwd",
+    subagents: [
+      { id: "forkcwd-0", name: "fork", task: "session-cwd-different", context: "fork", cwd: dir, sessionFile: "/sessions/fork.jsonl" },
+    ],
+  });
+
+  const result = await execNode([runner, configPath], { env: { ...process.env, PI_SUBAGENTS_PI_SCRIPT: fakePi } });
+  assert.equal(result.code, 0, result.stderr);
+
+  const status = JSON.parse(await fs.readFile(path.join(runDir, "status.json"), "utf8"));
+  assert.equal(status.subagents[0].resumeCommand, "(cd -- '/session/project' && pi --session fake-session-id)");
+  const events = await fs.readFile(path.join(runDir, "events.jsonl"), "utf8");
+  assert.match(events, /--session/);
+  assert.match(events, /\/sessions\/fork\.jsonl/);
 });
 
 test("runner accumulates usage across assistant turns", async () => {

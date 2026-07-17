@@ -13,6 +13,10 @@ function safeName(value) {
   return String(value || "task").replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "task";
 }
 
+function shellQuote(value) {
+  return `'${String(value).replaceAll("'", `'"'"'`)}'`;
+}
+
 function writeJsonAtomic(file, value) {
   const tmp = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
@@ -85,6 +89,8 @@ function createStatus(config) {
       model: task.model,
       thinking: task.thinking,
       sessionFile: task.sessionFile,
+      sessionId: undefined,
+      resumeCommand: undefined,
       startedAt: undefined,
       completedAt: undefined,
       updatedAt: now(),
@@ -135,7 +141,6 @@ function argsForSubagent(config, task, index) {
   const { promptPath, taskPath } = writeSubagentFiles(config, task, index);
   const args = ["--mode", "json", "-p", "--no-extensions"];
   if (task.sessionFile) args.push("--session", task.sessionFile);
-  else args.push("--no-session");
   if (task.model) args.push("--model", task.model);
   if (task.thinking) args.push("--thinking", task.thinking);
 
@@ -174,6 +179,14 @@ function processJsonLine({ line, subagentStatus, config, index, setFinalOutput, 
     event = JSON.parse(line);
   } catch {
     return;
+  }
+
+  if (event.type === "session" && typeof event.id === "string") {
+    const sessionCwd = typeof event.cwd === "string" ? event.cwd : subagentStatus.cwd;
+    subagentStatus.sessionId = event.id;
+    subagentStatus.resumeCommand = `(cd -- ${shellQuote(sessionCwd)} && pi --session ${event.id})`;
+    subagentStatus.updatedAt = now();
+    persist(status, statusPath, onUpdate);
   }
 
   if (event.type === "message_end" && event.message) {
@@ -389,7 +402,8 @@ function markQueuedAborted(status) {
 function writeAggregate(config, status, resultPath) {
   const sections = status.subagents.map((task) => {
     const output = fs.existsSync(task.outputFile) ? fs.readFileSync(task.outputFile, "utf8").trim() : "(no output)";
-    return `## ${task.name} — ${task.state}\n\n${output}`;
+    const resume = task.resumeCommand ? `> Resume: \`${task.resumeCommand}\`\n\n` : "";
+    return `## ${task.name} — ${task.state}\n\n${resume}${output}`;
   });
   const resultText = `# Subagent run ${config.runId}\n\n${sections.join("\n\n---\n\n")}\n`;
   fs.writeFileSync(resultPath, resultText, { encoding: "utf8", mode: 0o600 });

@@ -201,7 +201,7 @@ notify: "none"
 
 ### `fresh`
 
-Starts a new child Pi process with no parent conversation history.
+Starts a new child Pi process with no parent conversation history. The child is saved as a normal Pi session, and completed output includes `pi --session <id>` so it can be resumed.
 
 Use for isolated or adversarial work. This is the default.
 
