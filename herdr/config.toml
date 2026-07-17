@@ -1,5 +1,7 @@
+onboarding = false
+
 [ui]
-agent_panel_sort = "spaces"
+agent_panel_sort = "priority"
 
 [keys]
 help = ["prefix+?", "ctrl+alt+?"]
@@ -44,3 +46,7 @@ key = "ctrl+alt+v"
 type = "plugin_action"
 command = "local.vscode-workspace.open"
 description = "open workspace in VS Code"
+
+[theme]
+name = "nord"
+auto_switch = false
