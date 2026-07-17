@@ -1,7 +1,6 @@
 ---
 name: implement
 description: Use when the user asks to implement, build, fix, modify, or continue a concrete scoped code change; says "do it", "implement this", "pick up", "next step", or provides an issue/checklist/plan to complete.
-disable-model-invocation: true
 ---
 # Implement Skill
 
@@ -21,12 +20,12 @@ If scope is unclear, stop and ask.
    - Skip TDD for trivial edits, mechanical refactors, docs/config-only changes, or when no useful pre-agreed seam exists.
 3. Implement only the agreed scope.
 4. Verify with project-appropriate checks/tests when feasible.
-5. For code changes, run the `code-review` skill with exact reviewers `standards-conventions` and `spec-compliance`. Treat the agreed scope as the requirements source.
+5. For code changes, run the `code-review` skill with reviewers `standards-conventions` and `spec-compliance`. Treat the agreed scope as the requirements source.
 6. Fix accepted review findings that are within scope. If a finding requires scope expansion or a user decision, stop and ask.
 7. Mark completed checklist/plan items done when the scope came from a checklist or implementation plan.
 8. Hand off concisely.
 
-## Engineering Constraints
+## Engineering Principles
 
 ### Simplicity First
 
@@ -53,6 +52,16 @@ Ask: "Would a senior engineer say this is overcomplicated for the agreed scope?"
 - Don't remove pre-existing dead code unless asked
 
 Every changed line should trace directly to the agreed scope.
+
+### Interface Design
+
+**Prefer deep modules: narrow public interfaces that hide substantial implementation detail.**
+
+- Minimize public methods and parameters
+- Hide complexity rather than passing it through thin wrappers
+- Accept replaceable or external dependencies instead of constructing them internally
+- When the contract permits, return observable results instead of requiring callers or tests to inspect side effects
+- Don't add test-only hooks or abstractions
 
 ## Handoff
 

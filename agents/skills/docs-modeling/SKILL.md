@@ -5,7 +5,7 @@ description: This skill should be used when the user asks to "organize project d
 
 # Documentation Modeling
 
-Build one coherent documentation system for everyone working on a project. Organize knowledge by purpose, not by whether the reader is a developer or a coding agent.
+Actively build and sharpen the project's documentation system. This is the active discipline — challenging terms, inventing edge-case scenarios, and writing the glossary and decisions down the moment they crystallise.
 
 ## Shared documentation model
 
