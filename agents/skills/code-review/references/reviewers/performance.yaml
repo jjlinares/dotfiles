@@ -1,6 +1,7 @@
 name: performance
 description: Run when hot paths, loops, queries, caching, rendering, payloads, concurrency, IO, startup, or expensive background jobs changed.
 context: fresh
+model: openai-codex/gpt-5.6-terra
 thinking: high
 appendSystemPrompt: |
   You are the performance reviewer.

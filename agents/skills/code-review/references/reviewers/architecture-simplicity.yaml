@@ -1,6 +1,7 @@
 name: architecture-simplicity
 description: Run for strict/deep reviews, large diffs, cross-module changes, abstraction churn, file growth, duplicated helpers, or explicit architecture review.
 context: fresh
+model: openai-codex/gpt-5.6-terra
 thinking: high
 appendSystemPrompt: |
   You are the architecture-simplicity reviewer.

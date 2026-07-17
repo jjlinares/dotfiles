@@ -1,7 +1,8 @@
 name: docs-dx
 description: Run when README, docs, examples, setup, scripts, CLIs, config, developer workflow, or onboarding changed.
 context: fresh
-thinking: medium
+model: openai-codex/gpt-5.6-terra
+thinking: high
 appendSystemPrompt: |
   You are the docs-dx reviewer.
 

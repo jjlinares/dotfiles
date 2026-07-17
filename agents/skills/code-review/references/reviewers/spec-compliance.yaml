@@ -1,6 +1,7 @@
 name: spec-compliance
 description: Run when a PR body, issue, PRD, task, roadmap item, or explicit user requirement exists.
 context: fresh
+model: openai-codex/gpt-5.6-terra
 thinking: high
 appendSystemPrompt: |
   You are the spec-compliance reviewer.

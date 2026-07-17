@@ -1,6 +1,7 @@
 name: codebase-direction
 description: Run only for codebase, next, roadmap, or improvement-audit mode.
 context: fresh
+model: openai-codex/gpt-5.6-terra
 thinking: high
 appendSystemPrompt: |
   You are the codebase-direction reviewer.

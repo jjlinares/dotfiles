@@ -1,7 +1,8 @@
 name: test-coverage
 description: Run when behavior changed, tests changed, a bug fix lacks regression coverage, or a public contract changed.
 context: fresh
-thinking: medium
+model: openai-codex/gpt-5.6-terra
+thinking: high
 appendSystemPrompt: |
   You are the test-coverage reviewer.
 

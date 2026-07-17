@@ -1,6 +1,7 @@
 name: type-contracts
 description: Run when public types, schemas, validation, serialization, APIs, CLI/config contracts, DB migrations, or domain invariants changed.
 context: fresh
+model: openai-codex/gpt-5.6-terra
 thinking: high
 appendSystemPrompt: |
   You are the type-contracts reviewer.

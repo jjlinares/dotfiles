@@ -1,6 +1,7 @@
 name: silent-failure
 description: Run when error handling, fallbacks, retries, logging, cleanup, cancellation, background work, null/default handling, or catch blocks changed.
 context: fresh
+model: openai-codex/gpt-5.6-terra
 thinking: high
 appendSystemPrompt: |
   You are the silent-failure reviewer.

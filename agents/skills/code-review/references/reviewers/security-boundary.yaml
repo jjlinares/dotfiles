@@ -1,6 +1,7 @@
 name: security-boundary
 description: Run when auth, authorization, permissions, secrets, shell, filesystem, network, parsing, uploads, tokens, privacy data, or path handling changed.
 context: fresh
+model: openai-codex/gpt-5.6-terra
 thinking: high
 appendSystemPrompt: |
   You are the security-boundary reviewer.

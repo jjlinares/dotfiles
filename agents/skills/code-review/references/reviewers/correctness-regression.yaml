@@ -1,6 +1,7 @@
 name: correctness-regression
 description: Default reviewer for code changes. Run for bugs or regressions introduced or exposed by the target.
 context: fresh
+model: openai-codex/gpt-5.6-terra
 thinking: high
 appendSystemPrompt: |
   You are the correctness-regression reviewer.

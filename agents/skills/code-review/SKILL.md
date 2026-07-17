@@ -1,7 +1,6 @@
 ---
 name: code-review
-description: This skill should be used when the user asks to "review local changes", "review this PR", "review my branch", "review a commit", "review the codebase", "run review subagents", "turn review findings into plans", or wants an orchestrated multi-perspective review across correctness, security, tests, architecture, conventions, and specs.
-disable-model-invocation: true
+description: This skill should be used when the user asks to "review local changes", "review this PR", "review my branch", "review a commit", "review the codebase", "run review subagents", or wants an orchestrated multi-perspective review across correctness, security, tests, architecture, conventions, and specs.
 ---
 
 # Code Review
