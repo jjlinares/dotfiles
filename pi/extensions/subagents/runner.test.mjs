@@ -37,6 +37,7 @@ if (task.includes("many-jsonl")) {
 }
 const sessionCwd = task.includes("session-cwd-different") ? "/session/project" : process.cwd();
 console.log(JSON.stringify({ type: "session", version: 3, id: "fake-session-id", timestamp: new Date().toISOString(), cwd: sessionCwd }));
+if (task.includes("exit-before-message")) process.exit(9);
 console.log(JSON.stringify({ type: "tool_execution_start", toolName: "read", args: { path: "README.md" } }));
 const message = {
   type: "message_end",
@@ -282,6 +283,25 @@ test("runner does not launch queued subagents after abort", async () => {
   assert.equal(status.subagents[1].error, "Aborted before start");
   const events = await fs.readFile(path.join(runDir, "events.jsonl"), "utf8");
   assert.doesNotMatch(events, /queued/);
+});
+
+test("runner does not advertise a fresh session that exits before an assistant message", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-runner-test-"));
+  const fakePi = await makeFakePi(dir);
+  const { runDir, configPath } = await writeConfig(dir, {
+    runId: "unpersisted",
+    subagents: [
+      { id: "unpersisted-0", name: "fresh", task: "exit-before-message", context: "fresh" },
+    ],
+  });
+
+  const result = await execNode([runner, configPath], { env: { ...process.env, PI_SUBAGENTS_PI_SCRIPT: fakePi } });
+  assert.equal(result.code, 1);
+
+  const status = JSON.parse(await fs.readFile(path.join(runDir, "status.json"), "utf8"));
+  assert.equal(status.subagents[0].sessionId, "fake-session-id");
+  assert.equal(status.subagents[0].resumeCommand, undefined);
+  assert.doesNotMatch(await fs.readFile(path.join(runDir, "result.md"), "utf8"), /> Resume:/);
 });
 
 test("runner times out slow subagents", async () => {

@@ -17,6 +17,10 @@ function shellQuote(value) {
   return `'${String(value).replaceAll("'", `'"'"'`)}'`;
 }
 
+function formatResumeCommand(session) {
+  return `(cd -- ${shellQuote(session.cwd)} && pi --session ${session.id})`;
+}
+
 function writeJsonAtomic(file, value) {
   const tmp = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
@@ -170,7 +174,7 @@ function appendRawJsonl(subagentStatus, line, rawJsonlBytes, config) {
   rawJsonlBytes.set(subagentStatus.stdoutFile, current + size);
 }
 
-function processJsonLine({ line, subagentStatus, config, index, setFinalOutput, status, statusPath, onUpdate, rawJsonlBytes, onFinalStop }) {
+function processJsonLine({ line, subagentStatus, config, index, setFinalOutput, status, statusPath, onUpdate, rawJsonlBytes, onFinalStop, onSession, onAssistantMessage }) {
   if (!line.trim()) return;
   appendRawJsonl(subagentStatus, line, rawJsonlBytes, config);
 
@@ -182,15 +186,16 @@ function processJsonLine({ line, subagentStatus, config, index, setFinalOutput, 
   }
 
   if (event.type === "session" && typeof event.id === "string") {
-    const sessionCwd = typeof event.cwd === "string" ? event.cwd : subagentStatus.cwd;
+    const session = { id: event.id, cwd: typeof event.cwd === "string" ? event.cwd : subagentStatus.cwd };
     subagentStatus.sessionId = event.id;
-    subagentStatus.resumeCommand = `(cd -- ${shellQuote(sessionCwd)} && pi --session ${event.id})`;
+    onSession?.(session);
     subagentStatus.updatedAt = now();
     persist(status, statusPath, onUpdate);
   }
 
   if (event.type === "message_end" && event.message) {
     if (event.message.role === "assistant") {
+      onAssistantMessage?.();
       subagentStatus.usage.turns += 1;
       addUsage(subagentStatus.usage, event.message);
       const text = textFromMessage(event.message).trim();
@@ -260,6 +265,12 @@ async function runSubagent(config, status, statusPath, eventsPath, task, index, 
   let finalOutput = "";
   let stdoutBuffer = "";
   let stderrBuffer = "";
+  let session;
+  let sawAssistantMessage = false;
+  const onSession = (value) => {
+    session = value;
+    if (task.sessionFile) subagentStatus.resumeCommand = formatResumeCommand(value);
+  };
   const rawJsonlBytes = new Map();
   let timedOut = false;
   let aborted = false;
@@ -325,7 +336,7 @@ async function runSubagent(config, status, statusPath, eventsPath, task, index, 
     const lines = stdoutBuffer.split("\n");
     stdoutBuffer = lines.pop() || "";
     for (const line of lines) {
-      processJsonLine({ line, subagentStatus, config, index, setFinalOutput: (text) => { finalOutput = text; }, status, statusPath, onUpdate: options.onUpdate, rawJsonlBytes, onFinalStop: startFinalDrain });
+      processJsonLine({ line, subagentStatus, config, index, setFinalOutput: (text) => { finalOutput = text; }, status, statusPath, onUpdate: options.onUpdate, rawJsonlBytes, onFinalStop: startFinalDrain, onSession, onAssistantMessage: () => { sawAssistantMessage = true; } });
     }
   });
 
@@ -353,9 +364,10 @@ async function runSubagent(config, status, statusPath, eventsPath, task, index, 
   options.signal?.removeEventListener?.("abort", abort);
 
   if (stdoutBuffer.trim()) {
-    processJsonLine({ line: stdoutBuffer, subagentStatus, config, index, setFinalOutput: (text) => { finalOutput = text; }, status, statusPath, onUpdate: options.onUpdate, rawJsonlBytes, onFinalStop: startFinalDrain });
+    processJsonLine({ line: stdoutBuffer, subagentStatus, config, index, setFinalOutput: (text) => { finalOutput = text; }, status, statusPath, onUpdate: options.onUpdate, rawJsonlBytes, onFinalStop: startFinalDrain, onSession, onAssistantMessage: () => { sawAssistantMessage = true; } });
   }
 
+  if (!task.sessionFile && session && sawAssistantMessage) subagentStatus.resumeCommand = formatResumeCommand(session);
   if (!finalOutput && stderrBuffer.trim()) finalOutput = stderrBuffer.trim();
   if (!finalOutput && subagentStatus.warning) subagentStatus.error = subagentStatus.warning;
   if (!finalOutput) finalOutput = subagentStatus.error || "(no output)";
