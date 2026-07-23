@@ -1,0 +1,53 @@
+{{- $kwriteconfig := lookPath "kwriteconfig6" -}}
+{{- $kreadconfig := lookPath "kreadconfig6" -}}
+{{- $settings := list
+    (dict "file" "kdeglobals" "group" "General" "key" "BrowserApplication" "value" "google-chrome.desktop")
+    (dict "file" "kdeglobals" "group" "KDE" "key" "LookAndFeelPackage" "value" "org.kde.breezedark.desktop")
+    (dict "file" "kdeglobals" "group" "KDE" "key" "widgetStyle" "value" "Oxygen")
+    (dict "file" "kdeglobals" "group" "KFileDialog Settings" "key" "Allow Expansion" "value" "false")
+    (dict "file" "kdeglobals" "group" "KFileDialog Settings" "key" "Automatically select filename extension" "value" "true")
+    (dict "file" "kdeglobals" "group" "KFileDialog Settings" "key" "Breadcrumb Navigation" "value" "false")
+    (dict "file" "kdeglobals" "group" "KFileDialog Settings" "key" "Decoration position" "value" "2")
+    (dict "file" "kdeglobals" "group" "KFileDialog Settings" "key" "Show Full Path" "value" "false")
+    (dict "file" "kdeglobals" "group" "KFileDialog Settings" "key" "Show Inline Previews" "value" "true")
+    (dict "file" "kdeglobals" "group" "KFileDialog Settings" "key" "Show Preview" "value" "false")
+    (dict "file" "kdeglobals" "group" "KFileDialog Settings" "key" "Show Speedbar" "value" "true")
+    (dict "file" "kdeglobals" "group" "KFileDialog Settings" "key" "Show hidden files" "value" "true")
+    (dict "file" "kdeglobals" "group" "KFileDialog Settings" "key" "Sort by" "value" "Date")
+    (dict "file" "kdeglobals" "group" "KFileDialog Settings" "key" "Sort directories first" "value" "true")
+    (dict "file" "kdeglobals" "group" "KFileDialog Settings" "key" "Sort hidden files last" "value" "false")
+    (dict "file" "kdeglobals" "group" "KFileDialog Settings" "key" "Sort reversed" "value" "false")
+    (dict "file" "kdeglobals" "group" "KFileDialog Settings" "key" "Speedbar Width" "value" "140")
+    (dict "file" "kdeglobals" "group" "KFileDialog Settings" "key" "View Style" "value" "DetailTree")
+    (dict "file" "kwinrc" "group" "Windows" "key" "FocusStealingPreventionLevel" "value" "0")
+    (dict "file" "kwinrc" "group" "Xwayland" "key" "Scale" "value" "1")
+    (dict "file" "kwinrc" "group" "org.kde.kdecoration2" "key" "ButtonsOnLeft" "value" "BFS")
+    (dict "file" "kwinrc" "group" "org.kde.kdecoration2" "key" "library" "value" "org.kde.breeze")
+    (dict "file" "kwinrc" "group" "org.kde.kdecoration2" "key" "theme" "value" "Breeze")
+    (dict "file" "krunnerrc" "group" "General" "key" "FreeFloating" "value" "true")
+    (dict "file" "spectaclerc" "group" "Annotations" "key" "annotationToolType" "value" "2")
+    (dict "file" "spectaclerc" "group" "GuiConfig" "key" "captureMode" "value" "0")
+    (dict "file" "spectaclerc" "group" "ImageSave" "key" "translatedScreenshotsFolder" "value" "Screenshots")
+    (dict "file" "spectaclerc" "group" "VideoSave" "key" "translatedScreencastsFolder" "value" "Screencasts")
+-}}
+{{- $drift := false -}}
+{{- if and $kwriteconfig $kreadconfig -}}
+    {{- range $setting := $settings -}}
+        {{- $actual := output $kreadconfig "--file" (index $setting "file") "--group" (index $setting "group") "--key" (index $setting "key") | trim -}}
+        {{- if ne $actual (index $setting "value") -}}
+            {{- $drift = true -}}
+        {{- end -}}
+    {{- end -}}
+{{- end -}}
+{{- if and $kwriteconfig $kreadconfig $drift -}}
+#!/bin/sh
+set -eu
+
+{{ range $setting := $settings -}}
+{{ $kwriteconfig | quote }} --file {{ index $setting "file" | quote }} --group {{ index $setting "group" | quote }} --key {{ index $setting "key" | quote }} {{ index $setting "value" | quote }}
+{{ end }}
+# Update KWin immediately when a Plasma session is available.
+if command -v qdbus6 >/dev/null 2>&1; then
+    qdbus6 org.kde.KWin /KWin org.kde.KWin.reconfigure >/dev/null 2>&1 || true
+fi
+{{ end -}}

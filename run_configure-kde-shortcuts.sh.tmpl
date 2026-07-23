@@ -1,11 +1,24 @@
 {{- $kwriteconfig := lookPath "kwriteconfig6" -}}
+{{- $kreadconfig := lookPath "kreadconfig6" -}}
+{{- $krunnerShortcuts := printf "Alt+Space\tAlt+F2\tSearch" -}}
+{{- $drift := false -}}
+{{- if and $kwriteconfig $kreadconfig -}}
+    {{- if ne (output $kreadconfig "--file" "kglobalshortcutsrc" "--group" "kwin" "--key" "Switch Window Down" | trim) "none,Meta+Alt+Down,Switch to Window Below" }}{{ $drift = true }}{{ end -}}
+    {{- if ne (output $kreadconfig "--file" "kglobalshortcutsrc" "--group" "kwin" "--key" "Switch Window Left" | trim) "none,Meta+Alt+Left,Switch to Window to the Left" }}{{ $drift = true }}{{ end -}}
+    {{- if ne (output $kreadconfig "--file" "kglobalshortcutsrc" "--group" "kwin" "--key" "Switch Window Right" | trim) "none,Meta+Alt+Right,Switch to Window to the Right" }}{{ $drift = true }}{{ end -}}
+    {{- if ne (output $kreadconfig "--file" "kglobalshortcutsrc" "--group" "kwin" "--key" "Switch Window Up" | trim) "none,Meta+Alt+Up,Switch to Window Above" }}{{ $drift = true }}{{ end -}}
+    {{- if ne (output $kreadconfig "--file" "kglobalshortcutsrc" "--group" "kwin" "--key" "Window Custom Quick Tile Bottom" | trim) "Meta+Alt+Down,,Custom Quick Tile Window to the Bottom" }}{{ $drift = true }}{{ end -}}
+    {{- if ne (output $kreadconfig "--file" "kglobalshortcutsrc" "--group" "kwin" "--key" "Window Custom Quick Tile Left" | trim) "Meta+Alt+Left,,Custom Quick Tile Window to the Left" }}{{ $drift = true }}{{ end -}}
+    {{- if ne (output $kreadconfig "--file" "kglobalshortcutsrc" "--group" "kwin" "--key" "Window Custom Quick Tile Right" | trim) "Meta+Alt+Right,,Custom Quick Tile Window to the Right" }}{{ $drift = true }}{{ end -}}
+    {{- if ne (output $kreadconfig "--file" "kglobalshortcutsrc" "--group" "kwin" "--key" "Window Custom Quick Tile Top" | trim) "Meta+Alt+Up,,Custom Quick Tile Window to the Top" }}{{ $drift = true }}{{ end -}}
+    {{- if ne (output $kreadconfig "--file" "kglobalshortcutsrc" "--group" "services" "--group" "com.mitchellh.ghostty.desktop" "--key" "_launch" | trim) "Ctrl+Alt+Space" }}{{ $drift = true }}{{ end -}}
+    {{- if ne (output $kreadconfig "--file" "kglobalshortcutsrc" "--group" "services" "--group" "org.kde.krunner.desktop" "--key" "_launch" | trim) $krunnerShortcuts }}{{ $drift = true }}{{ end -}}
+    {{- if ne (output $kreadconfig "--file" "kglobalshortcutsrc" "--group" "services" "--group" "org.kde.spectacle.desktop" "--key" "_launch" | trim) "Meta+Shift+S" }}{{ $drift = true }}{{ end -}}
+{{- end -}}
+{{- if and $kwriteconfig $kreadconfig $drift -}}
 #!/bin/bash
 set -eu
 
-# Tool presence is rendered into the script so installing KDE later retriggers it.
-# kwriteconfig6: {{ if $kwriteconfig }}{{ $kwriteconfig }}{{ else }}unavailable{{ end }}
-
-{{ if $kwriteconfig -}}
 write_kwin_shortcut() {
     {{ $kwriteconfig | quote }} --file kglobalshortcutsrc --group kwin --key "$1" "$2"
 }
