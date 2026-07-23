@@ -1,0 +1,16 @@
+{
+    "window.commandCenter": true,
+    "cursor.cpp.enablePartialAccepts": true,
+    "workbench.activityBar.orientation": "vertical",
+    "workbench.colorTheme": "Default Dark Modern",
+    "terminal.integrated.defaultProfile.linux": "zsh",
+    "explorer.confirmDragAndDrop": false,
+    "git.confirmSync": false,
+    "remote.autoForwardPortsSource": "hybrid",
+    "[python]": {
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
+    },
+    "diffEditor.ignoreTrimWhitespace": false
+}
