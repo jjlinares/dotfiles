@@ -24,12 +24,14 @@ import {
 	type RunStatus,
 	type SubagentParams,
 } from "./core.ts";
+import { projectRunStatus, SubagentReadModel, type ChildSnapshot } from "./read-model.ts";
+import { CompletionNotificationState, type NotificationRecord } from "./notification-state.ts";
+import { openSubagentsDashboard } from "./ui/index.ts";
 
-type ActiveRun = { id: string; dir: string; notify: NotifyMode; notified?: boolean };
 type PreparedRun = { id: string; dir: string; notify: NotifyMode; count: number; config: RunConfig; configPath: string };
 
 const RUNNER_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "runner.mjs");
-const POLL_MS = 250;
+const STATUS_ID = "subagents";
 
 const ToolOverride = Type.Unsafe({
 	anyOf: [
@@ -131,11 +133,11 @@ function compactNumber(value: number): string {
 	return String(value);
 }
 
-function subagentTokens(task: RunStatus["subagents"][number]): number {
+function subagentTokens(task: ChildSnapshot): number {
 	return task.usage?.totalTokens || ((task.usage?.input ?? 0) + (task.usage?.output ?? 0));
 }
 
-function subagentRuntime(task: RunStatus["subagents"][number]): string {
+function subagentRuntime(task: ChildSnapshot): string {
 	if (!task.startedAt) return "";
 	return duration((task.completedAt ?? Date.now()) - task.startedAt);
 }
@@ -147,14 +149,14 @@ function truncateText(value: string, max = Math.max(80, (process.stdout.columns 
 const COMPACT_SUBAGENT_DETAIL_LINES = 3;
 const EXPANDED_SUBAGENT_DETAIL_LINES = 6;
 
-function subagentOutputLines(task: RunStatus["subagents"][number], limit: number): string[] {
+function subagentOutputLines(task: ChildSnapshot, limit: number): string[] {
 	const recent = (task.recentOutput ?? []).filter((line) => line.trim());
 	if (recent.length > 0) return recent.slice(-limit).map((line) => truncateText(line.trim(), 120));
 	if (task.preview && !task.preview.startsWith("tool:")) return [truncateText(task.preview.trim(), 120)];
 	return [];
 }
 
-function latestToolLine(task: RunStatus["subagents"][number]): string | undefined {
+function latestToolLine(task: ChildSnapshot): string | undefined {
 	if (task.currentTool) {
 		const args = task.currentToolArgs || (task.currentPath ? String(task.currentPath) : "");
 		return truncateText(`tool: ${task.currentTool}${args ? ` ${args}` : ""}`);
@@ -165,7 +167,7 @@ function latestToolLine(task: RunStatus["subagents"][number]): string | undefine
 }
 
 function fixedSubagentDetailLines(
-	task: RunStatus["subagents"][number],
+	task: ChildSnapshot,
 	theme: ExtensionContext["ui"]["theme"],
 	expanded: boolean,
 ): string[] {
@@ -173,6 +175,7 @@ function fixedSubagentDetailLines(
 	const details: string[] = [];
 
 	if (task.state === "failed" && task.error) details.push(theme.fg("error", `     ${truncateText(task.error.split("\n", 1)[0], 120)}`));
+	else if (task.state === "cancelled" && task.reason) details.push(theme.fg("warning", `     ${truncateText(task.reason.split("\n", 1)[0], 120)}`));
 	else if (task.warning) details.push(theme.fg("warning", `     warning: ${truncateText(task.warning.split("\n", 1)[0], 110)}`));
 
 	const currentOrRecentTool = latestToolLine(task);
@@ -196,17 +199,18 @@ function fixedSubagentDetailLines(
 
 function subagentGlyph(state: string, theme: ExtensionContext["ui"]["theme"]): string {
 	if (state === "complete") return theme.fg("success", "✓");
+	if (state === "cancelled") return theme.fg("warning", "−");
 	if (state === "failed") return theme.fg("error", "✗");
 	if (state === "running") return theme.fg("accent", "◐");
 	return theme.fg("dim", "◦");
 }
 
-function summarizeUsage(status: RunStatus): { tools: number; turns: number; tokens: number; cost: number } {
+function summarizeUsage(children: readonly ChildSnapshot[]): { tools: number; turns: number; tokens: number; cost: number } {
 	let tools = 0;
 	let turns = 0;
 	let tokens = 0;
 	let cost = 0;
-	for (const task of status.subagents) {
+	for (const task of children) {
 		tools += task.toolCount ?? 0;
 		turns += task.usage?.turns ?? 0;
 		tokens += subagentTokens(task);
@@ -222,17 +226,20 @@ function renderStatusCard(
 	expanded: boolean,
 	finalText?: string,
 ): Text {
-	const done = status.subagents.filter((task) => task.state === "complete" || task.state === "failed").length;
-	const failed = status.subagents.filter((task) => task.state === "failed").length;
-	const running = status.subagents.filter((task) => task.state === "running").length;
-	const queued = status.subagents.filter((task) => task.state === "queued").length;
+	const children = projectRunStatus(status, runDir ?? path.join(RUN_ROOT, status.id));
+	const done = children.filter((task) => task.state === "complete" || task.state === "cancelled" || task.state === "failed").length;
+	const cancelled = children.filter((task) => task.state === "cancelled").length;
+	const failed = children.filter((task) => task.state === "failed").length;
+	const running = children.filter((task) => task.state === "running").length;
+	const queued = children.filter((task) => task.state === "queued").length;
 	const elapsed = duration((status.completedAt ?? Date.now()) - status.startedAt);
-	const usage = summarizeUsage(status);
-	const stateGlyph = status.state === "complete" ? theme.fg("success", "✓") : status.state === "failed" ? theme.fg("error", "✗") : theme.fg("accent", "◐");
+	const usage = summarizeUsage(children);
+	const stateGlyph = status.state === "complete" ? theme.fg("success", "✓") : status.state === "cancelled" ? theme.fg("warning", "−") : status.state === "failed" ? theme.fg("error", "✗") : theme.fg("accent", "◐");
 	const stats = [
 		`${done}/${status.subagents.length}`,
 		running ? `${running} running` : "",
 		queued ? `${queued} queued` : "",
+		cancelled ? `${cancelled} cancelled` : "",
 		failed ? `${failed} failed` : "",
 		usage.tools ? `${usage.tools} tools` : "",
 		usage.turns ? `${usage.turns} turns` : "",
@@ -243,7 +250,7 @@ function renderStatusCard(
 	const lines = [`${stateGlyph} ${theme.fg("toolTitle", theme.bold("subagents"))} ${theme.fg("dim", `· ${status.state} · ${stats}`)}`];
 	if (!expanded && status.state === "running") lines.push(theme.fg("accent", `  ${keyHint("app.tools.expand", "for details")}`));
 
-	for (const task of status.subagents) {
+	for (const task of children) {
 		const label = `${task.index + 1}. ${task.name}`;
 		const tokenCount = subagentTokens(task);
 		const subagentStats = [
@@ -297,7 +304,7 @@ async function runForeground(
 		const statusText = formatStatus(run.dir);
 		if (statusText === lastStatusText) return;
 		lastStatusText = statusText;
-		onUpdate?.({ content: [{ type: "text", text: `Subagent run ${run.id} ${status.state} (${status.subagents.filter((task) => task.state === "complete" || task.state === "failed").length}/${status.subagents.length}).` }], details: { ...run, status } });
+		onUpdate?.({ content: [{ type: "text", text: `Subagent run ${run.id} ${status.state} (${status.subagents.filter((task) => task.state === "complete" || task.state === "cancelled" || task.state === "failed").length}/${status.subagents.length}).` }], details: { ...run, status } });
 	};
 	const { status, resultText } = await runSubagents(run.config, { signal, onUpdate: emitUpdate });
 	return {
@@ -310,31 +317,106 @@ async function runForeground(
 export default function registerSubagents(pi: ExtensionAPI): void {
 	if (process.env.PI_SIMPLE_SUBAGENT_CHILD === "1") return;
 	ensureDir(RUN_ROOT);
-	const activeRuns = new Map<string, ActiveRun>();
-	let lastCtx: ExtensionContext | undefined;
-	let poller: NodeJS.Timeout | undefined;
+	let readModel: SubagentReadModel | undefined;
+	let sessionCtx: ExtensionContext | undefined;
+	let unsubscribe: (() => void) | undefined;
+	let notificationRetry: NodeJS.Timeout | undefined;
+	let activeDashboardCloser: (() => void) | undefined;
+	const notifications = new CompletionNotificationState(3);
 
-	const ensurePoller = () => {
-		if (poller) return;
-		poller = setInterval(() => {
-			if (!lastCtx) return;
-			for (const run of activeRuns.values()) {
-				if (run.notified) continue;
-				const status = readJson<RunStatus>(statusPath(run.dir));
-				if (!status || status.state === "running") continue;
-				run.notified = true;
-				notifyCompletion({
-					notify: run.notify,
-					status,
-					runDir: run.dir,
-					hasUI: lastCtx.hasUI,
-					isIdle: lastCtx.isIdle(),
-					sendUserMessage: (message, options) => pi.sendUserMessage(message, options),
-					uiNotify: (message, type) => lastCtx?.ui.notify(message, type),
-				});
-			}
-		}, POLL_MS);
+	const closeActiveDashboard = () => {
+		const close = activeDashboardCloser;
+		activeDashboardCloser = undefined;
+		try { close?.(); } catch {}
 	};
+
+	const updateFooter = (ctx: ExtensionContext, snapshots: readonly ChildSnapshot[]) => {
+		const active = snapshots.filter((snapshot) => snapshot.runState === "running");
+		if (active.length === 0) {
+			ctx.ui.setStatus(STATUS_ID, undefined);
+			return;
+		}
+		const running = active.filter((snapshot) => snapshot.state === "running").length;
+		const queued = active.filter((snapshot) => snapshot.state === "queued").length;
+		const completed = active.filter((snapshot) => snapshot.state === "complete").length;
+		const cancelled = active.filter((snapshot) => snapshot.state === "cancelled").length;
+		const failed = active.filter((snapshot) => snapshot.state === "failed").length;
+		const counts = [
+			`${running} running`,
+			...(queued ? [`${queued} queued`] : []),
+			`${completed} completed`,
+			`${cancelled} cancelled`,
+			`${failed} failed`,
+		].join(" · ");
+		ctx.ui.setStatus(STATUS_ID, `subagents: ${counts} · /subagents`);
+	};
+
+	const dispatchNotification = (snapshot: ChildSnapshot, tracked: Readonly<NotificationRecord>) => {
+		const ctx = sessionCtx;
+		if (!ctx) throw new Error("Subagent session is no longer active.");
+		notifyCompletion({
+			notify: tracked.notify,
+			status: {
+				id: snapshot.parentRunId,
+				state: snapshot.runState,
+				cwd: snapshot.cwd,
+				notify: tracked.notify,
+				startedAt: snapshot.runStartedAt,
+				updatedAt: snapshot.runUpdatedAt,
+				...(snapshot.runCompletedAt !== undefined ? { completedAt: snapshot.runCompletedAt } : {}),
+				subagents: [],
+			},
+			runDir: tracked.runDir,
+			hasUI: ctx.hasUI,
+			isIdle: ctx.isIdle(),
+			sendUserMessage: (message, options) => pi.sendUserMessage(message, options),
+			uiNotify: (message, type) => ctx.ui.notify(message, type),
+		});
+	};
+
+	const clearNotificationRetry = () => {
+		if (notificationRetry) clearTimeout(notificationRetry);
+		notificationRetry = undefined;
+	};
+
+	const handleSnapshots = (snapshots: readonly ChildSnapshot[]) => {
+		const ctx = sessionCtx;
+		if (!ctx) return;
+		try { updateFooter(ctx, snapshots); } catch {}
+		const { retryNeeded } = notifications.observe(snapshots, dispatchNotification);
+		if (!retryNeeded) clearNotificationRetry();
+		else if (!notificationRetry) {
+			notificationRetry = setTimeout(() => {
+				notificationRetry = undefined;
+				const current = readModel?.list();
+				if (current) {
+					try { handleSnapshots(current); } catch {}
+				}
+			}, 250);
+			notificationRetry.unref?.();
+		}
+	};
+
+	const safeHandleSnapshots = (snapshots: readonly ChildSnapshot[]) => {
+		try { handleSnapshots(snapshots); } catch {}
+	};
+
+	pi.registerCommand("subagents", {
+		description: "Open the live subagent dashboard",
+		handler: async (_args, ctx) => {
+			if (!readModel) {
+				if (ctx.hasUI) ctx.ui.notify("Subagent dashboard is not available for this session.", "warning");
+				return;
+			}
+			await openSubagentsDashboard(ctx, readModel, (close) => {
+				closeActiveDashboard();
+				activeDashboardCloser = close;
+				return () => {
+					if (activeDashboardCloser === close) activeDashboardCloser = undefined;
+				};
+			});
+		},
+	});
 
 	pi.registerTool({
 		name: "subagent",
@@ -348,7 +430,6 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 		].join(" "),
 		parameters: SubagentParamsSchema,
 		async execute(_id, rawParams, signal, onUpdate, ctx) {
-			lastCtx = ctx;
 			const params = rawParams as SubagentParams;
 			if (params.action === "status") {
 				const runDir = params.id ? findRunDir(params.id) : undefined;
@@ -361,8 +442,7 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 			try {
 				if (params.async === true) {
 					const run = launchAsyncRun(params, ctx);
-					activeRuns.set(run.id, run);
-					ensurePoller();
+					notifications.trackLaunch(run.id, run.dir, run.notify);
 					return {
 						content: [{
 							type: "text",
@@ -401,12 +481,25 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 	});
 
 	pi.on("session_start", (_event, ctx) => {
-		lastCtx = ctx;
-		ensurePoller();
+		unsubscribe?.();
+		readModel?.dispose();
+		clearNotificationRetry();
+		sessionCtx = ctx;
+		readModel = new SubagentReadModel(RUN_ROOT);
+		notifications.seed(readModel.list());
+		safeHandleSnapshots(readModel.list());
+		unsubscribe = readModel.subscribe(safeHandleSnapshots);
 	});
 
-	pi.on("session_shutdown", () => {
-		if (poller) clearInterval(poller);
-		poller = undefined;
+	pi.on("session_shutdown", (_event, ctx) => {
+		unsubscribe?.();
+		unsubscribe = undefined;
+		readModel?.dispose();
+		readModel = undefined;
+		clearNotificationRetry();
+		notifications.clear();
+		closeActiveDashboard();
+		sessionCtx = undefined;
+		ctx.ui.setStatus(STATUS_ID, undefined);
 	});
 }

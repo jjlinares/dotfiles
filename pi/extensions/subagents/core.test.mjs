@@ -7,6 +7,7 @@ import {
   buildRunConfig,
   ensureDir,
   findRunDir,
+  formatRunLine,
   formatStatus,
   loadSubagentProfile,
   needsFork,
@@ -49,6 +50,8 @@ test("buildRunConfig applies defaults and subagent overrides", () => {
   });
 
   assert.equal(config.cwd, "/work/repo");
+  assert.equal(config.mode, "foreground");
+  assert.equal(config.controlProtocolVersion, 1);
   assert.equal(config.notify, "followUp");
   assert.equal(config.concurrency, 4);
   assert.equal(config.timeoutMs, 1234);
@@ -122,6 +125,17 @@ test("needsFork reads context from profiles", async () => {
   assert.equal(needsFork({ subagents: [{ profile: "fork.yaml", task: "review" }] }, dir), true);
 });
 
+test("buildRunConfig persists background execution mode", () => {
+  const config = buildRunConfig({
+    params: { async: true, subagents: [{ task: "inspect" }] },
+    ctxCwd: "/work",
+    runId: "background",
+    runDir: "/tmp/background",
+  });
+
+  assert.equal(config.mode, "background");
+});
+
 test("buildRunConfig defaults thinking to medium", () => {
   const config = buildRunConfig({
     params: { subagents: [{ task: "inspect" }] },
@@ -176,6 +190,19 @@ test("findRunDir supports exact and prefix matches", async () => {
   assert.equal(findRunDir("missing", root), undefined);
 });
 
+test("formatRunLine reports cancelled as a distinct terminal outcome", () => {
+  assert.equal(formatRunLine({
+    id: "cancelled",
+    state: "cancelled",
+    cwd: "/work",
+    notify: "none",
+    startedAt: 1000,
+    updatedAt: 2000,
+    completedAt: 2000,
+    subagents: [{ id: "cancelled-0", index: 0, name: "one", state: "cancelled", reason: "Cancelled by user" }],
+  }, 2000), "− cancelled cancelled 1/1 1s");
+});
+
 test("formatStatus lists runs and includes subagent details", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-core-test-"));
   const runDir = path.join(root, "run1");
@@ -220,6 +247,20 @@ test("notifyCompletion sends TUI notification by default path", () => {
   assert.equal(mode, "tui");
   assert.deepEqual(ui, [["Subagent abc complete", "info"]]);
   assert.deepEqual(sent, []);
+});
+
+test("notifyCompletion reports cancellation without error styling", () => {
+  const ui = [];
+  notifyCompletion({
+    notify: "tui",
+    status: { id: "abc", state: "cancelled", cwd: "/work", notify: "tui", startedAt: 0, updatedAt: 1, subagents: [] },
+    runDir: "/tmp/run",
+    hasUI: true,
+    isIdle: true,
+    sendUserMessage: () => {},
+    uiNotify: (...args) => ui.push(args),
+  });
+  assert.deepEqual(ui, [["Subagent abc cancelled", "info"]]);
 });
 
 test("notifyCompletion followUp queues when parent is busy", () => {

@@ -15,7 +15,7 @@
     ]
   },
   "scripts": {
-    "test": "node --experimental-strip-types --test core.test.mjs runner.test.mjs"
+    "test": "node --experimental-strip-types --test core.test.mjs notification-state.test.mjs read-model.test.mjs runner.test.mjs ui/files.test.mjs ui/model.test.mjs"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

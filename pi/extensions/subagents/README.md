@@ -20,11 +20,23 @@ When `appendSystemPrompt` is provided, it is always appended to Pi's core system
 
 Runs default to foreground/blocking so the parent sees all child results before answering. Use `async: true` when the parent should keep working while children run in the background.
 
-## Tool
+## Tool and dashboard
 
-Registers one tool: `subagent`.
+Registers one tool, `subagent`, and one command, `/subagents`.
 
-Runs are foreground by default. Set `async: true` for background execution that returns a run id immediately.
+Runs are foreground by default. Set `async: true` for background execution that returns a run id immediately. `/subagents` opens a live dashboard containing only children launched by this extension—not arbitrary Pi sessions. It defaults to children whose effective cwd matches the current Pi directory; press Tab to toggle all persisted subagents across directories. It remains available while a foreground `subagent` tool call is running; opening or closing it does not pause the child or parent tool.
+
+Dashboard keys:
+
+| Key | Action |
+|---|---|
+| Configured select up/down keys (defaults: `↑` / `↓`), plus `Home` / `End` | Navigate children or scroll detail. |
+| Configured select confirm key (default: `Enter`) | Open detail or confirm a cancellation request. |
+| Configured Tab key (default: `Tab`) | Toggle between the current directory and all persisted subagents. |
+| `a` | Request best-effort cancellation of the selected queued/running child; literal `y`/`n` also confirm/dismiss. |
+| Configured select cancel keys (defaults: `Esc`, `Ctrl+C`) | Return from detail or close the dashboard. Closing does not request child cancellation. |
+
+The dashboard is TUI-only. In other Pi modes the command returns safely (and warns where UI notifications are available).
 
 ## Basic use
 
@@ -163,7 +175,7 @@ Default foreground behavior:
 subagent({ subagents: [{ task: "Review the diff" }] })
 ```
 
-The tool waits for all children, streams status updates, then returns the aggregate result to the parent.
+The tool waits for all children, streams status updates, then returns the aggregate result to the parent. `/subagents` can be opened during this wait; foreground execution continues behind the overlay.
 
 Background behavior:
 
@@ -189,13 +201,17 @@ Opt into parent wake-up:
 notify: "followUp"
 ```
 
-When complete, sends a user follow-up message containing the result path and status command. If parent Pi is busy, it queues as `followUp`.
+When settled, sends a user follow-up message containing the result path and status command. If parent Pi is busy, it queues as `followUp`.
 
 Disable notifications:
 
 ```ts
 notify: "none"
 ```
+
+Background status is persisted under the run directory. On session start, the read model recovers background runs that are still running and notifies once if they later settle. Historical terminal runs remain visible but do not replay notifications. Newly launched runs are tracked before their first status poll.
+
+The footer only summarizes children whose parent run is currently active, with running/queued/completed/cancelled/failed counts and a `/subagents` hint. It clears after those parent runs settle.
 
 ## Context
 
@@ -229,7 +245,15 @@ subagent({
 
 Foreground and background runs share the same executor (`executor.mjs`). Foreground calls it in-process so status updates can stream back to the parent tool call. Background launches `runner.mjs`, which is only a thin detached wrapper around the same executor.
 
-Foreground progress is rendered from structured status details, not raw child logs. Collapsed results show a fanout card with queued/running/complete/failed states, current tool/path, per-subagent tools/turns/tokens/cost/runtime, recent tool use, and up to two output lines. Expanded results add more recent tools/output plus per-subagent output/jsonl paths.
+The dashboard requests cancellation through a private per-child control marker. This is best-effort, not an atomic guarantee: a child may settle before the owning executor observes the request. When observed in time, the executor handles it: queued children are not spawned; running children use the executor's normal process-group termination path. Cancellation is terminal `cancelled`, with `Cancelled by user` recorded as its reason rather than an execution error. A run is `failed` if any child actually fails; otherwise it is `cancelled` if any child is cancelled, and `complete` only when every child completes. Cancelled-only foreground results are not marked as tool errors. Repeated requests are idempotent. Configured dashboard cancel closes the overlay first; parent interrupt behavior remains separate.
+
+Every child gets a sanitized normalized transcript, even when `includeJsonl` is false. It records assistant/tool/warning/error activity and is capped at **1 MiB per child** with an explicit truncation marker. Optional raw Pi JSONL remains separately capped at 50 MB. Final `output-*.md` and aggregate `result.md` behavior is unchanged.
+
+Runs and status survive Pi reload/restart while their temporary run directories remain present. Running detached jobs are rediscovered; old completed/cancelled/failed jobs are not announced again. `/tmp` cleanup by the OS can remove this history.
+
+This subprocess transport is read-only after launch except for cancellation. It does **not** support steering, sending another message to a child, or continuing it in place. Use the displayed `pi --session ...` resume command after completion when available.
+
+Foreground progress is rendered from structured status details, not raw child logs. Collapsed results show a fanout card with queued/running/complete/cancelled/failed states, current tool/path, per-subagent tools/turns/tokens/cost/runtime, recent tool use, and up to two output lines. Expanded results add more recent tools/output plus per-subagent output/jsonl paths.
 
 ## Runtime files
 
@@ -250,6 +274,7 @@ Important files:
 | `prompt-*.md` | Optional per-child system prompt append, only written when `appendSystemPrompt` is provided. |
 | `input-*.md` | Per-child task input passed to Pi. |
 | `output-*.md` | Per-child final output. |
+| `transcript-*.jsonl` | Sanitized normalized live transcript; always written and capped at 1 MiB per child. |
 | `subagent-*.jsonl` | Per-child raw Pi JSON stdout, only when `includeJsonl: true`; capped at 50 MB per child. |
 | `subagent-*.stderr.log` | Per-child stderr. |
 
@@ -291,9 +316,7 @@ This extension registers the tool name `subagent`. Do not load another extension
 Run:
 
 ```bash
-node --experimental-strip-types --test \
-  pi/extensions/subagents/core.test.mjs \
-  pi/extensions/subagents/runner.test.mjs
+npm --prefix pi/extensions/subagents test
 ```
 
 Coverage targets:
@@ -305,6 +328,8 @@ Coverage targets:
 - defaults and overrides
 - status formatting
 - notification decisions
+- read-model flattening/change notifications and dashboard selection/scroll/transcript parsing
+- queued/running cancellation and transcript caps
 
 Smoke-load extension through Pi:
 

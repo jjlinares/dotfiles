@@ -1,9 +1,21 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import {
+  CONTROL_POLL_MS,
+  CONTROL_PROTOCOL_VERSION,
+  MAX_TRANSCRIPT_BYTES,
+  eventsFilePath,
+  readAbortMarker,
+  resultFilePath,
+  statusFilePath,
+  transcriptFilePath,
+} from "./_protocol.mjs";
 
 const KILL_GRACE_MS = 3000;
 const MAX_JSONL_BYTES = 50 * 1024 * 1024;
+const MAX_TRANSCRIPT_FIELD_CHARS = 64 * 1024;
+const MAX_TOOL_UPDATE_BYTES = 8 * 1024;
 
 function now() {
   return Date.now();
@@ -21,14 +33,108 @@ function formatResumeCommand(session) {
   return `(cd -- ${shellQuote(session.cwd)} && pi --session ${session.id})`;
 }
 
+function writeTextAtomic(file, value) {
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tmp, value, { mode: 0o600 });
+  try {
+    fs.renameSync(tmp, file);
+  } finally {
+    try { fs.unlinkSync(tmp); } catch {}
+  }
+}
+
 function writeJsonAtomic(file, value) {
-  const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
-  fs.renameSync(tmp, file);
+  writeTextAtomic(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function appendEvent(eventsPath, event) {
   fs.appendFileSync(eventsPath, `${JSON.stringify(event)}\n`, { mode: 0o600 });
+}
+
+function sanitizeTranscriptText(value) {
+  return String(value ?? "")
+    .replace(/\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1B\\)?)/g, "")
+    .replace(/[\x00-\x08\x0B-\x1F\x7F-\x9F]/g, "")
+    .replace(/[\u202A-\u202E\u2066-\u2069]/g, "")
+    .slice(0, MAX_TRANSCRIPT_FIELD_CHARS);
+}
+
+function sanitizeTranscriptValue(value, depth = 0) {
+  if (typeof value === "string") return sanitizeTranscriptText(value);
+  if (value === null || typeof value === "number" || typeof value === "boolean") return value;
+  if (depth >= 6) return "[nested]";
+  if (Array.isArray(value)) return value.slice(0, 100).map((entry) => sanitizeTranscriptValue(entry, depth + 1));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).slice(0, 100).map(([key, entry]) => [sanitizeTranscriptText(key), sanitizeTranscriptValue(entry, depth + 1)]));
+  }
+  return String(value ?? "");
+}
+
+function textFromToolResult(value) {
+  if (!value || typeof value !== "object") return undefined;
+  const content = value.content;
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return undefined;
+  const text = content
+    .map((part) => typeof part === "string" ? part : part?.type === "text" && typeof part.text === "string" ? part.text : "")
+    .filter(Boolean)
+    .join("\n");
+  return text || undefined;
+}
+
+function transcriptValue(value) {
+  if (typeof value === "string") return sanitizeTranscriptText(value);
+  if (value === undefined) return undefined;
+  const toolText = textFromToolResult(value);
+  if (toolText !== undefined) return sanitizeTranscriptText(toolText);
+  try { return sanitizeTranscriptText(JSON.stringify(sanitizeTranscriptValue(value))); } catch { return "[unserializable]"; }
+}
+
+function boundUtf8Text(value, maxBytes) {
+  if (Buffer.byteLength(value, "utf8") <= maxBytes) return value;
+  let low = 0;
+  let high = value.length;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (Buffer.byteLength(value.slice(0, middle), "utf8") <= maxBytes) low = middle;
+    else high = middle - 1;
+  }
+  return value.slice(0, low);
+}
+
+function appendTranscript(subagentStatus, event, config) {
+  const at = now();
+  const normalized = {
+    ts: at,
+    type: event.type,
+    ...(event.tool ? { tool: sanitizeTranscriptText(event.tool) } : {}),
+    ...(event.text !== undefined ? { text: transcriptValue(event.text) } : {}),
+  };
+  subagentStatus.latestActivity = {
+    type: normalized.type,
+    ...(normalized.tool ? { tool: normalized.tool } : {}),
+    ...(normalized.text ? { text: normalized.text.slice(0, 240) } : {}),
+    at,
+  };
+  if (subagentStatus.transcriptTruncated) return;
+
+  const requestedMax = config.maxTranscriptBytes;
+  const maxBytes = Number.isFinite(requestedMax) && requestedMax > 0
+    ? Math.min(requestedMax, MAX_TRANSCRIPT_BYTES)
+    : MAX_TRANSCRIPT_BYTES;
+  const current = subagentStatus.transcriptBytes ?? 0;
+  const chunk = `${JSON.stringify(normalized)}\n`;
+  const marker = `${JSON.stringify({ ts: at, type: "truncated", maxBytes })}\n`;
+  if (current + Buffer.byteLength(chunk) > maxBytes - Buffer.byteLength(marker)) {
+    if (current + Buffer.byteLength(marker) <= maxBytes) {
+      fs.appendFileSync(subagentStatus.transcriptFile, marker, { mode: 0o600 });
+      subagentStatus.transcriptBytes = current + Buffer.byteLength(marker);
+    }
+    subagentStatus.transcriptTruncated = true;
+    return;
+  }
+  fs.appendFileSync(subagentStatus.transcriptFile, chunk, { mode: 0o600 });
+  subagentStatus.transcriptBytes = current + Buffer.byteLength(chunk);
 }
 
 function ensurePrivateDir(dir) {
@@ -76,6 +182,8 @@ function getPiInvocation(args, config) {
 function createStatus(config) {
   return {
     id: config.runId,
+    mode: config.mode ?? "foreground",
+    controlProtocolVersion: CONTROL_PROTOCOL_VERSION,
     state: "running",
     cwd: config.cwd,
     notify: config.notify,
@@ -100,6 +208,7 @@ function createStatus(config) {
       updatedAt: now(),
       exitCode: undefined,
       error: undefined,
+      reason: undefined,
       warning: undefined,
       preview: "",
       currentTool: undefined,
@@ -112,23 +221,31 @@ function createStatus(config) {
       outputFile: path.join(config.runDir, `output-${index}-${safeName(task.name)}.md`),
       stderrFile: path.join(config.runDir, `subagent-${index}-${safeName(task.name)}.stderr.log`),
       ...(config.includeJsonl ? { stdoutFile: path.join(config.runDir, `subagent-${index}-${safeName(task.name)}.jsonl`) } : {}),
+      transcriptFile: transcriptFilePath(config.runDir, index),
+      transcriptBytes: 0,
+      transcriptTruncated: false,
+      latestActivity: undefined,
       usage: emptyUsage(),
     })),
   };
 }
 
 function persist(status, statusPath, onUpdate) {
-  const completed = status.subagents.filter((task) => ["complete", "failed"].includes(task.state)).length;
-  const failed = status.subagents.filter((task) => task.state === "failed").length;
+  status.state = "running";
+  status.completedAt = undefined;
   status.updatedAt = now();
-  if (completed === status.subagents.length) {
-    status.state = failed > 0 ? "failed" : "complete";
-    status.completedAt ??= now();
-  } else {
-    status.state = "running";
-  }
   writeJsonAtomic(statusPath, status);
-  onUpdate?.(status);
+  try { onUpdate?.(status); } catch {}
+}
+
+function publishTerminal(status, statusPath, onUpdate, forcedState) {
+  const failed = status.subagents.some((task) => task.state === "failed");
+  const cancelled = status.subagents.some((task) => task.state === "cancelled");
+  status.state = forcedState ?? (failed ? "failed" : cancelled ? "cancelled" : "complete");
+  status.completedAt = now();
+  status.updatedAt = now();
+  writeJsonAtomic(statusPath, status);
+  try { onUpdate?.(status); } catch {}
 }
 
 function writeSubagentFiles(config, task, index) {
@@ -174,7 +291,7 @@ function appendRawJsonl(subagentStatus, line, rawJsonlBytes, config) {
   rawJsonlBytes.set(subagentStatus.stdoutFile, current + size);
 }
 
-function processJsonLine({ line, subagentStatus, config, index, setFinalOutput, status, statusPath, onUpdate, rawJsonlBytes, onFinalStop, onSession, onAssistantMessage }) {
+function processJsonLine({ line, subagentStatus, config, index, setFinalOutput, status, statusPath, onUpdate, rawJsonlBytes, onFinalStop, onSession, onAssistantMessage, toolUpdateState }) {
   if (!line.trim()) return;
   appendRawJsonl(subagentStatus, line, rawJsonlBytes, config);
 
@@ -182,6 +299,9 @@ function processJsonLine({ line, subagentStatus, config, index, setFinalOutput, 
   try {
     event = JSON.parse(line);
   } catch {
+    appendTranscript(subagentStatus, { type: "warning", text: "Malformed child JSON event" }, config);
+    subagentStatus.updatedAt = now();
+    persist(status, statusPath, onUpdate);
     return;
   }
 
@@ -201,11 +321,15 @@ function processJsonLine({ line, subagentStatus, config, index, setFinalOutput, 
       const text = textFromMessage(event.message).trim();
       if (text) {
         setFinalOutput(text);
+        appendTranscript(subagentStatus, { type: "assistant", text }, config);
         const outputLines = text.split("\n").filter((part) => part.trim()).slice(-5);
         subagentStatus.recentOutput = outputLines;
         subagentStatus.preview = text.split("\n").find((part) => part.trim())?.slice(0, 240) || subagentStatus.preview;
       }
-      if (event.message.errorMessage) subagentStatus.warning = event.message.errorMessage;
+      if (event.message.errorMessage) {
+        subagentStatus.warning = event.message.errorMessage;
+        appendTranscript(subagentStatus, { type: "warning", text: event.message.errorMessage }, config);
+      }
       const stopReason = event.message.stopReason;
       const hasToolCall = Array.isArray(event.message.content) && event.message.content.some((part) => part?.type === "toolCall");
       if (stopReason === "stop" && !hasToolCall) onFinalStop?.({ clean: !event.message.errorMessage && Boolean(text) });
@@ -215,17 +339,42 @@ function processJsonLine({ line, subagentStatus, config, index, setFinalOutput, 
   }
 
   if (event.type === "tool_execution_start" || event.type === "tool_call") {
+    toolUpdateState.hasValue = false;
+    toolUpdateState.value = undefined;
     subagentStatus.currentTool = event.toolName || event.name || "unknown";
     subagentStatus.currentToolArgs = event.args ? JSON.stringify(event.args).slice(0, 240) : undefined;
     subagentStatus.currentToolStartedAt = now();
     subagentStatus.currentPath = event.args?.path || event.args?.file_path || event.args?.command;
     subagentStatus.toolCount = (subagentStatus.toolCount || 0) + 1;
     subagentStatus.preview = `tool: ${subagentStatus.currentTool}${subagentStatus.currentPath ? ` ${String(subagentStatus.currentPath).slice(0, 160)}` : ""}`;
+    appendTranscript(subagentStatus, { type: "tool_start", tool: subagentStatus.currentTool, text: event.args }, config);
+    subagentStatus.updatedAt = now();
+    persist(status, statusPath, onUpdate);
+  }
+
+  if (event.type === "tool_execution_update") {
+    const current = transcriptValue(event.partialResult ?? event.output ?? event.result ?? event.delta ?? event.content);
+    if (toolUpdateState.hasValue && current === toolUpdateState.value) return;
+    const text = typeof current === "string" && toolUpdateState.hasValue && typeof toolUpdateState.value === "string" && current.startsWith(toolUpdateState.value)
+      ? current.slice(toolUpdateState.value.length)
+      : current;
+    toolUpdateState.hasValue = true;
+    toolUpdateState.value = current;
+    appendTranscript(subagentStatus, {
+      type: "tool_update",
+      tool: event.toolName || event.name || subagentStatus.currentTool || "unknown",
+      ...(typeof text === "string" ? { text: boundUtf8Text(text, MAX_TOOL_UPDATE_BYTES) } : {}),
+    }, config);
     subagentStatus.updatedAt = now();
     persist(status, statusPath, onUpdate);
   }
 
   if (event.type === "tool_execution_end") {
+    toolUpdateState.hasValue = false;
+    toolUpdateState.value = undefined;
+    const endedTool = event.toolName || event.name || subagentStatus.currentTool || "unknown";
+    appendTranscript(subagentStatus, { type: "tool_end", tool: endedTool, text: event.output ?? event.result }, config);
+    if (event.isError) appendTranscript(subagentStatus, { type: "error", tool: endedTool, text: event.result ?? "Tool execution failed" }, config);
     if (subagentStatus.currentTool) {
       subagentStatus.recentTools = [...(subagentStatus.recentTools || []), {
         tool: subagentStatus.currentTool,
@@ -251,8 +400,49 @@ function killChild(child, signal = "SIGTERM") {
   }
 }
 
+function childAddress(config, task, index) {
+  return { runDir: config.runDir, runId: config.runId, childId: task.id, index };
+}
+
+function cancellationRequested(config, task, index) {
+  return Boolean(readAbortMarker(childAddress(config, task, index)));
+}
+
+function isTerminalState(state) {
+  return state === "complete" || state === "cancelled" || state === "failed";
+}
+
+function markCancelled(status, config, index) {
+  const subagentStatus = status.subagents[index];
+  if (isTerminalState(subagentStatus.state)) return false;
+  subagentStatus.state = "cancelled";
+  subagentStatus.reason = "Cancelled by user";
+  subagentStatus.preview = subagentStatus.reason;
+  subagentStatus.completedAt = now();
+  subagentStatus.updatedAt = now();
+  appendTranscript(subagentStatus, { type: "warning", text: subagentStatus.reason }, config);
+  return true;
+}
+
+function cancelQueuedChild(status, config, statusPath, eventsPath, task, index, onUpdate) {
+  if (status.subagents[index].state !== "queued" || !cancellationRequested(config, task, index)) return false;
+  if (!markCancelled(status, config, index)) return false;
+  appendEvent(eventsPath, { type: "subagent_end", ts: now(), index, name: task.name, error: "Cancelled by user", cancelledBeforeStart: true });
+  persist(status, statusPath, onUpdate);
+  return true;
+}
+
 async function runSubagent(config, status, statusPath, eventsPath, task, index, options) {
   const subagentStatus = status.subagents[index];
+  if (isTerminalState(subagentStatus.state)) return;
+  const cancelBeforeSpawn = () => {
+    if (!cancellationRequested(config, task, index) || !markCancelled(status, config, index)) return false;
+    appendEvent(eventsPath, { type: "subagent_end", ts: now(), index, name: task.name, error: "Cancelled by user", cancelledBeforeStart: true });
+    persist(status, statusPath, options.onUpdate);
+    return true;
+  };
+  if (cancelBeforeSpawn()) return;
+
   subagentStatus.state = "running";
   subagentStatus.startedAt = now();
   subagentStatus.updatedAt = now();
@@ -260,6 +450,7 @@ async function runSubagent(config, status, statusPath, eventsPath, task, index, 
 
   const args = argsForSubagent(config, task, index);
   const invocation = getPiInvocation(args, config);
+  if (cancelBeforeSpawn()) return;
   appendEvent(eventsPath, { type: "subagent_start", ts: now(), index, name: task.name, args: invocation.args });
 
   let finalOutput = "";
@@ -272,8 +463,10 @@ async function runSubagent(config, status, statusPath, eventsPath, task, index, 
     if (task.sessionFile) subagentStatus.resumeCommand = formatResumeCommand(value);
   };
   const rawJsonlBytes = new Map();
+  const toolUpdateState = { hasValue: false, value: undefined };
   let timedOut = false;
   let aborted = false;
+  let cancelledByUser = false;
   let childExited = false;
   let forcedFinalDrain = false;
   let cleanTerminalAssistantStop = false;
@@ -297,7 +490,7 @@ async function runSubagent(config, status, statusPath, eventsPath, task, index, 
 
   const startFinalDrain = ({ clean }) => {
     cleanTerminalAssistantStop ||= clean;
-    if (childExited || finalDrainTimer || timedOut || aborted) return;
+    if (childExited || finalDrainTimer || timedOut || aborted || cancelledByUser) return;
     finalDrainTimer = setTimeout(() => {
       forcedFinalDrain = true;
       if (!cleanTerminalAssistantStop && !subagentStatus.error) subagentStatus.error = "Subagent process did not exit after final message.";
@@ -308,25 +501,44 @@ async function runSubagent(config, status, statusPath, eventsPath, task, index, 
     finalDrainTimer.unref?.();
   };
 
+  const scheduleTermination = () => {
+    killChild(child, "SIGTERM");
+    const hardKill = setTimeout(() => killChild(child, "SIGKILL"), KILL_GRACE_MS);
+    hardKill.unref?.();
+    hardKillTimers.push(hardKill);
+  };
+
+  const cancelByUser = () => {
+    if (cancelledByUser || timedOut || aborted || childExited) return;
+    cancelledByUser = true;
+    subagentStatus.reason = "Cancelled by user";
+    appendTranscript(subagentStatus, { type: "warning", text: subagentStatus.reason }, config);
+    subagentStatus.updatedAt = now();
+    persist(status, statusPath, options.onUpdate);
+    scheduleTermination();
+  };
+  const controlPoll = setInterval(() => {
+    if (cancellationRequested(config, task, index)) cancelByUser();
+  }, CONTROL_POLL_MS);
+  controlPoll.unref?.();
+  if (cancellationRequested(config, task, index)) cancelByUser();
+
   const timeout = config.timeoutMs && config.timeoutMs > 0
     ? setTimeout(() => {
+      if (cancelledByUser || aborted || childExited) return;
       timedOut = true;
       subagentStatus.error = `Timed out after ${config.timeoutMs}ms`;
-      killChild(child, "SIGTERM");
-      const hardKill = setTimeout(() => killChild(child, "SIGKILL"), KILL_GRACE_MS);
-      hardKill.unref?.();
-      hardKillTimers.push(hardKill);
+      scheduleTermination();
     }, config.timeoutMs)
     : undefined;
   timeout?.unref?.();
 
   const abort = () => {
+    if (cancelledByUser || timedOut || aborted || childExited) return;
     aborted = true;
-    subagentStatus.error = "Aborted";
-    killChild(child, "SIGTERM");
-    const hardKill = setTimeout(() => killChild(child, "SIGKILL"), KILL_GRACE_MS);
-    hardKill.unref?.();
-    hardKillTimers.push(hardKill);
+    subagentStatus.reason = "Aborted";
+    appendTranscript(subagentStatus, { type: "warning", text: subagentStatus.reason }, config);
+    scheduleTermination();
   };
   if (options.signal?.aborted) abort();
   else options.signal?.addEventListener("abort", abort, { once: true });
@@ -336,7 +548,7 @@ async function runSubagent(config, status, statusPath, eventsPath, task, index, 
     const lines = stdoutBuffer.split("\n");
     stdoutBuffer = lines.pop() || "";
     for (const line of lines) {
-      processJsonLine({ line, subagentStatus, config, index, setFinalOutput: (text) => { finalOutput = text; }, status, statusPath, onUpdate: options.onUpdate, rawJsonlBytes, onFinalStop: startFinalDrain, onSession, onAssistantMessage: () => { sawAssistantMessage = true; } });
+      processJsonLine({ line, subagentStatus, config, index, setFinalOutput: (text) => { finalOutput = text; }, status, statusPath, onUpdate: options.onUpdate, rawJsonlBytes, onFinalStop: startFinalDrain, onSession, onAssistantMessage: () => { sawAssistantMessage = true; }, toolUpdateState });
     }
   });
 
@@ -359,34 +571,48 @@ async function runSubagent(config, status, statusPath, eventsPath, task, index, 
   });
 
   if (timeout) clearTimeout(timeout);
+  clearInterval(controlPoll);
   clearFinalDrainTimers();
   for (const timer of hardKillTimers) clearTimeout(timer);
   options.signal?.removeEventListener?.("abort", abort);
 
   if (stdoutBuffer.trim()) {
-    processJsonLine({ line: stdoutBuffer, subagentStatus, config, index, setFinalOutput: (text) => { finalOutput = text; }, status, statusPath, onUpdate: options.onUpdate, rawJsonlBytes, onFinalStop: startFinalDrain, onSession, onAssistantMessage: () => { sawAssistantMessage = true; } });
+    processJsonLine({ line: stdoutBuffer, subagentStatus, config, index, setFinalOutput: (text) => { finalOutput = text; }, status, statusPath, onUpdate: options.onUpdate, rawJsonlBytes, onFinalStop: startFinalDrain, onSession, onAssistantMessage: () => { sawAssistantMessage = true; }, toolUpdateState });
   }
-
   if (!task.sessionFile && session && sawAssistantMessage) subagentStatus.resumeCommand = formatResumeCommand(session);
   if (!finalOutput && stderrBuffer.trim()) finalOutput = stderrBuffer.trim();
   if (!finalOutput && subagentStatus.warning) subagentStatus.error = subagentStatus.warning;
-  if (!finalOutput) finalOutput = subagentStatus.error || "(no output)";
+  if (!finalOutput) finalOutput = subagentStatus.error || subagentStatus.reason || "(no output)";
 
-  const effectiveExitCode = forcedFinalDrain && cleanTerminalAssistantStop && finalOutput && !timedOut && !aborted ? 0 : exitCode;
+  const effectiveExitCode = forcedFinalDrain && cleanTerminalAssistantStop && finalOutput && !timedOut && !aborted && !cancelledByUser ? 0 : exitCode;
   subagentStatus.exitCode = effectiveExitCode;
   subagentStatus.completedAt = now();
   subagentStatus.updatedAt = now();
   if (timedOut) subagentStatus.error = `Timed out after ${config.timeoutMs}ms`;
-  if (aborted) subagentStatus.error = "Aborted";
-  subagentStatus.state = effectiveExitCode === 0 && !subagentStatus.error ? "complete" : "failed";
+  if (aborted) subagentStatus.reason = "Aborted";
+  if (cancelledByUser) subagentStatus.reason = "Cancelled by user";
   subagentStatus.currentTool = undefined;
   subagentStatus.currentToolArgs = undefined;
   subagentStatus.currentToolStartedAt = undefined;
   subagentStatus.currentPath = undefined;
   fs.writeFileSync(subagentStatus.outputFile, finalOutput, { encoding: "utf8", mode: 0o600 });
   subagentStatus.preview = finalOutput.split("\n").find((line) => line.trim())?.slice(0, 240) || "(no output)";
-  appendEvent(eventsPath, { type: "subagent_end", ts: now(), index, name: task.name, exitCode: effectiveExitCode, error: subagentStatus.error, forcedFinalDrain });
+
+  // Cancellation is cooperative. This last ownership-side check makes a request
+  // observed before terminal publication win without pretending the marker write is atomic with exit.
+  if (cancellationRequested(config, task, index)) {
+    if (!cancelledByUser) appendTranscript(subagentStatus, { type: "warning", text: "Cancelled by user" }, config);
+    cancelledByUser = true;
+    subagentStatus.reason = "Cancelled by user";
+  }
+  subagentStatus.state = (cancelledByUser || aborted) && !subagentStatus.error
+    ? "cancelled"
+    : effectiveExitCode === 0 && !subagentStatus.error ? "complete" : "failed";
+  if (subagentStatus.state === "failed") {
+    appendTranscript(subagentStatus, { type: "error", text: subagentStatus.error || `Subagent process exited with code ${effectiveExitCode}` }, config);
+  }
   persist(status, statusPath, options.onUpdate);
+  appendEvent(eventsPath, { type: "subagent_end", ts: now(), index, name: task.name, exitCode: effectiveExitCode, error: subagentStatus.error, forcedFinalDrain });
 }
 
 async function mapConcurrent(items, concurrency, fn, signal) {
@@ -397,50 +623,90 @@ async function mapConcurrent(items, concurrency, fn, signal) {
       await fn(items[index], index);
     }
   });
-  await Promise.all(workers);
+  const settled = await Promise.allSettled(workers);
+  const rejected = settled.find((result) => result.status === "rejected");
+  if (rejected?.status === "rejected") throw rejected.reason;
 }
 
-function markQueuedAborted(status) {
+function markQueuedAborted(status, config) {
   for (const task of status.subagents) {
     if (task.state !== "queued") continue;
-    task.state = "failed";
-    task.error = "Aborted before start";
+    task.state = "cancelled";
+    task.reason = "Aborted";
     task.completedAt = now();
     task.updatedAt = now();
-    task.preview = task.error;
+    task.preview = task.reason;
+    appendTranscript(task, { type: "warning", text: task.reason }, config);
   }
 }
 
 function writeAggregate(config, status, resultPath) {
   const sections = status.subagents.map((task) => {
-    const output = fs.existsSync(task.outputFile) ? fs.readFileSync(task.outputFile, "utf8").trim() : "(no output)";
+    const persistedOutput = fs.existsSync(task.outputFile) ? fs.readFileSync(task.outputFile, "utf8").trim() : "";
+    const output = persistedOutput || task.error || task.reason || "(no output)";
     const resume = task.resumeCommand ? `> Resume: \`${task.resumeCommand}\`\n\n` : "";
     return `## ${task.name} — ${task.state}\n\n${resume}${output}`;
   });
   const resultText = `# Subagent run ${config.runId}\n\n${sections.join("\n\n---\n\n")}\n`;
-  fs.writeFileSync(resultPath, resultText, { encoding: "utf8", mode: 0o600 });
+  writeTextAtomic(resultPath, resultText);
   return resultText;
+}
+
+function markRunnerFailed(status, error) {
+  const message = error instanceof Error ? error.stack || error.message : String(error);
+  status.error = message;
+  for (const task of status.subagents) {
+    if (isTerminalState(task.state)) continue;
+    task.state = "failed";
+    task.error = message;
+    task.preview = message.split("\n", 1)[0];
+    task.completedAt = now();
+    task.updatedAt = now();
+  }
+  return message;
 }
 
 export async function runSubagents(config, options = {}) {
   ensurePrivateDir(config.runDir);
-  const statusPath = path.join(config.runDir, "status.json");
-  const eventsPath = path.join(config.runDir, "events.jsonl");
-  const resultPath = path.join(config.runDir, "result.md");
+  const statusPath = statusFilePath(config.runDir);
+  const eventsPath = eventsFilePath(config.runDir);
+  const resultPath = resultFilePath(config.runDir);
   const status = createStatus(config);
-  persist(status, statusPath, options.onUpdate);
+  for (const taskStatus of status.subagents) fs.writeFileSync(taskStatus.transcriptFile, "", { mode: 0o600 });
+  let runControlPoll;
+  const clearRunControlPoll = () => {
+    if (!runControlPoll) return;
+    clearInterval(runControlPoll);
+    runControlPoll = undefined;
+  };
   try {
-    await mapConcurrent(config.subagents, config.concurrency || 4, (task, index) => runSubagent(config, status, statusPath, eventsPath, task, index, options), options.signal);
-    if (options.signal?.aborted) markQueuedAborted(status);
-    const resultText = writeAggregate(config, status, resultPath);
     persist(status, statusPath, options.onUpdate);
+    const pollQueuedChildren = () => {
+      for (let index = 0; index < config.subagents.length; index++) {
+        cancelQueuedChild(status, config, statusPath, eventsPath, config.subagents[index], index, options.onUpdate);
+      }
+    };
+    runControlPoll = setInterval(pollQueuedChildren, CONTROL_POLL_MS);
+    runControlPoll.unref?.();
+    pollQueuedChildren();
+
+    await mapConcurrent(config.subagents, config.concurrency || 4, async (task, index) => {
+      const child = status.subagents[index];
+      if (isTerminalState(child.state)) return;
+      if (cancelQueuedChild(status, config, statusPath, eventsPath, task, index, options.onUpdate)) return;
+      await runSubagent(config, status, statusPath, eventsPath, task, index, options);
+    }, options.signal);
+    if (options.signal?.aborted) markQueuedAborted(status, config);
+    clearRunControlPoll();
+    const resultText = writeAggregate(config, status, resultPath);
+    publishTerminal(status, statusPath, options.onUpdate);
     return { status, resultText, resultPath };
   } catch (error) {
-    status.state = "failed";
-    status.error = error instanceof Error ? error.stack || error.message : String(error);
-    status.completedAt = now();
-    persist(status, statusPath, options.onUpdate);
-    appendEvent(eventsPath, { type: "runner_error", ts: now(), error: status.error });
+    clearRunControlPoll();
+    const message = markRunnerFailed(status, error);
+    writeAggregate(config, status, resultPath);
+    publishTerminal(status, statusPath, options.onUpdate, "failed");
+    appendEvent(eventsPath, { type: "runner_error", ts: now(), error: message });
     throw error;
   }
 }

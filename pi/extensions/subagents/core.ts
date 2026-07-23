@@ -3,9 +3,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseDocument } from "yaml";
+import { CONTROL_PROTOCOL_VERSION, resultFilePath, statusFilePath } from "./_protocol.mjs";
 
 export type ContextMode = "fresh" | "fork";
 export type NotifyMode = "tui" | "followUp" | "none";
+export type ExecutionMode = "foreground" | "background";
 export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
 
 export type SubagentInput = {
@@ -41,7 +43,9 @@ export type SubagentParams = {
 
 export type RunStatus = {
 	id: string;
-	state: "running" | "complete" | "failed";
+	mode?: ExecutionMode;
+	controlProtocolVersion?: number;
+	state: "running" | "complete" | "cancelled" | "failed";
 	cwd: string;
 	notify: NotifyMode;
 	startedAt: number;
@@ -52,7 +56,7 @@ export type RunStatus = {
 		id: string;
 		index: number;
 		name: string;
-		state: "queued" | "running" | "complete" | "failed";
+		state: "queued" | "running" | "complete" | "cancelled" | "failed";
 		preview?: string;
 		outputFile?: string;
 		stderrFile?: string;
@@ -67,6 +71,7 @@ export type RunStatus = {
 		completedAt?: number;
 		updatedAt?: number;
 		error?: string;
+		reason?: string;
 		warning?: string;
 		currentTool?: string;
 		currentToolArgs?: string;
@@ -76,6 +81,10 @@ export type RunStatus = {
 		recentTools?: Array<{ tool: string; args: string; endMs: number }>;
 		recentOutput?: string[];
 		stdoutFile?: string;
+		transcriptFile?: string;
+		transcriptBytes?: number;
+		transcriptTruncated?: boolean;
+		latestActivity?: { type: "assistant" | "tool_start" | "tool_update" | "tool_end" | "warning" | "error"; text?: string; tool?: string; at: number };
 		exitCode?: number;
 		usage?: { input: number; output: number; cacheRead?: number; cacheWrite?: number; cost: number; turns: number; totalTokens: number };
 	}>;
@@ -96,11 +105,15 @@ export type RunConfig = {
 	runId: string;
 	runDir: string;
 	cwd: string;
+	mode: ExecutionMode;
+	controlProtocolVersion: number;
 	notify: NotifyMode;
 	concurrency: number;
 	timeoutMs?: number;
 	includeJsonl: boolean;
 	piScript?: string;
+	maxJsonlBytes?: number;
+	maxTranscriptBytes?: number;
 	subagents: PlannedSubagent[];
 };
 
@@ -154,11 +167,11 @@ export function readJson<T>(file: string): T | undefined {
 }
 
 export function statusPath(runDir: string): string {
-	return path.join(runDir, "status.json");
+	return statusFilePath(runDir);
 }
 
 export function resultPath(runDir: string): string {
-	return path.join(runDir, "result.md");
+	return resultFilePath(runDir);
 }
 
 export function listRunDirs(root = RUN_ROOT): string[] {
@@ -279,6 +292,8 @@ export function buildRunConfig(input: {
 		runId,
 		runDir,
 		cwd,
+		mode: params.async === true ? "background" : "foreground",
+		controlProtocolVersion: CONTROL_PROTOCOL_VERSION,
 		notify: params.notify ?? "tui",
 		concurrency: params.concurrency ?? DEFAULT_CONCURRENCY,
 		...(params.timeoutMs ? { timeoutMs: params.timeoutMs } : {}),
@@ -304,8 +319,8 @@ export function formatDuration(ms: number): string {
 }
 
 export function formatRunLine(status: RunStatus, now = Date.now()): string {
-	const icon = status.state === "complete" ? "✓" : status.state === "failed" ? "✗" : "…";
-	const done = status.subagents.filter((task) => task.state === "complete" || task.state === "failed").length;
+	const icon = status.state === "complete" ? "✓" : status.state === "cancelled" ? "−" : status.state === "failed" ? "✗" : "…";
+	const done = status.subagents.filter((task) => task.state === "complete" || task.state === "cancelled" || task.state === "failed").length;
 	const age = formatDuration((status.completedAt ?? now) - status.startedAt);
 	return `${icon} ${status.id} ${status.state} ${done}/${status.subagents.length} ${age}`;
 }
@@ -338,9 +353,9 @@ export function formatStatus(runDir?: string, root = RUN_ROOT, now = Date.now())
 }
 
 export function completionMessage(status: RunStatus, runDir: string): string {
-	const failed = status.state === "failed";
+	const outcome = status.state === "complete" ? "completed" : status.state;
 	return [
-		`Subagent run ${status.id} ${failed ? "failed" : "completed"}.`,
+		`Subagent run ${status.id} ${outcome}.`,
 		`Result: ${resultPath(runDir)}`,
 		`Inspect with subagent({ action: "status", id: "${status.id}" }).`,
 	].join("\n");
