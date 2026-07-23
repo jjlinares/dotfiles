@@ -1,0 +1,38 @@
+{{- $code := lookPath "code" -}}
+{{- $cursor := lookPath "cursor" -}}
+#!/bin/sh
+set -eu
+
+# Including the installed ID sets makes this script rerun after extension drift.
+# VS Code installed IDs: {{ if $code }}{{ output "env" "NODE_NO_WARNINGS=1" $code "--list-extensions" | trim | splitList "\n" | sortAlpha | join "\n" | sha256sum }}{{ else }}unavailable{{ end }}
+# Cursor installed IDs: {{ if $cursor }}{{ output "env" "NODE_NO_WARNINGS=1" $cursor "--list-extensions" | trim | splitList "\n" | sortAlpha | join "\n" | sha256sum }}{{ else }}unavailable{{ end }}
+
+export NODE_NO_WARNINGS=1
+
+install_extensions() {
+    editor="$1"
+    installed="$("$editor" --list-extensions | tr '[:upper:]' '[:lower:]')"
+
+    while IFS= read -r extension; do
+        [ -n "$extension" ] || continue
+        if ! printf '%s\n' "$installed" | grep -Fxiq -- "$extension"; then
+            "$editor" --install-extension "$extension"
+        fi
+    done
+}
+
+{{ if $code -}}
+install_extensions {{ $code | quote }} <<'EOF_VSCODE'
+{{ range .editorExtensions.vscode -}}
+{{ . }}
+{{ end -}}
+EOF_VSCODE
+{{ end -}}
+
+{{ if $cursor -}}
+install_extensions {{ $cursor | quote }} <<'EOF_CURSOR'
+{{ range .editorExtensions.cursor -}}
+{{ . }}
+{{ end -}}
+EOF_CURSOR
+{{ end -}}
