@@ -1,0 +1,20 @@
+packages:
+  apt:
+    prerequisites:
+      - ca-certificates
+      - curl
+      - gnupg
+    packages:
+      - bash-completion
+      - gh
+      - git
+      - kustomize
+      - ripgrep
+      - tmux
+      - unzip
+      - zsh
+  kubernetes:
+    minor: v1.35
+  npmGlobals:
+    - "@earendil-works/pi-coding-agent"
+    - "@openai/codex"

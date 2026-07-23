@@ -1,3 +1,0 @@
-# Extensions installed only on host (not in devcontainers)
-anysphere.remote-containers
-ms-kubernetes-tools.vscode-kubernetes-tools
