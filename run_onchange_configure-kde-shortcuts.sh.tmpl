@@ -1,0 +1,72 @@
+{{- $kwriteconfig := lookPath "kwriteconfig6" -}}
+#!/bin/bash
+set -eu
+
+# Tool presence is rendered into the script so installing KDE later retriggers it.
+# kwriteconfig6: {{ if $kwriteconfig }}{{ $kwriteconfig }}{{ else }}unavailable{{ end }}
+
+{{ if $kwriteconfig -}}
+write_kwin_shortcut() {
+    {{ $kwriteconfig | quote }} --file kglobalshortcutsrc --group kwin --key "$1" "$2"
+}
+
+write_service_shortcut() {
+    {{ $kwriteconfig | quote }} --file kglobalshortcutsrc --group services --group "$1" --key _launch "$2"
+}
+
+# Reserve Meta+Alt+Arrow for custom quick tiling.
+write_kwin_shortcut "Switch Window Down" "none,Meta+Alt+Down,Switch to Window Below"
+write_kwin_shortcut "Switch Window Left" "none,Meta+Alt+Left,Switch to Window to the Left"
+write_kwin_shortcut "Switch Window Right" "none,Meta+Alt+Right,Switch to Window to the Right"
+write_kwin_shortcut "Switch Window Up" "none,Meta+Alt+Up,Switch to Window Above"
+write_kwin_shortcut "Window Custom Quick Tile Bottom" "Meta+Alt+Down,,Custom Quick Tile Window to the Bottom"
+write_kwin_shortcut "Window Custom Quick Tile Left" "Meta+Alt+Left,,Custom Quick Tile Window to the Left"
+write_kwin_shortcut "Window Custom Quick Tile Right" "Meta+Alt+Right,,Custom Quick Tile Window to the Right"
+write_kwin_shortcut "Window Custom Quick Tile Top" "Meta+Alt+Up,,Custom Quick Tile Window to the Top"
+
+# Application launchers.
+write_service_shortcut "com.mitchellh.ghostty.desktop" "Ctrl+Alt+Space"
+write_service_shortcut "org.kde.krunner.desktop" $'Alt+Space\tAlt+F2\tSearch'
+write_service_shortcut "org.kde.spectacle.desktop" "Meta+Shift+S"
+
+# Update the running shortcut daemon when a Plasma session is available.
+if ! python3 <<'PY'
+try:
+    import dbus
+    bus = dbus.SessionBus()
+    iface = dbus.Interface(
+        bus.get_object('org.kde.kglobalaccel', '/kglobalaccel'),
+        'org.kde.KGlobalAccel',
+    )
+except Exception:
+    raise SystemExit(1)
+
+NO_AUTOLOAD = dbus.UInt32(4)
+
+def set_shortcut(component, name, friendly_name, description, keys):
+    action_id = dbus.Array(
+        [component, name, friendly_name, description],
+        signature='s',
+    )
+    iface.setShortcut(
+        action_id,
+        dbus.Array([dbus.Int32(key) for key in keys], signature='i'),
+        NO_AUTOLOAD,
+    )
+
+set_shortcut('kwin', 'Switch Window Down', 'KWin', 'Switch to Window Below', [])
+set_shortcut('kwin', 'Switch Window Left', 'KWin', 'Switch to Window to the Left', [])
+set_shortcut('kwin', 'Switch Window Right', 'KWin', 'Switch to Window to the Right', [])
+set_shortcut('kwin', 'Switch Window Up', 'KWin', 'Switch to Window Above', [])
+set_shortcut('kwin', 'Window Custom Quick Tile Bottom', 'KWin', 'Custom Quick Tile Window to the Bottom', [419430421])
+set_shortcut('kwin', 'Window Custom Quick Tile Left', 'KWin', 'Custom Quick Tile Window to the Left', [419430418])
+set_shortcut('kwin', 'Window Custom Quick Tile Right', 'KWin', 'Custom Quick Tile Window to the Right', [419430420])
+set_shortcut('kwin', 'Window Custom Quick Tile Top', 'KWin', 'Custom Quick Tile Window to the Top', [419430419])
+set_shortcut('com.mitchellh.ghostty.desktop', '_launch', 'Ghostty', 'Ghostty', [201326624])
+set_shortcut('org.kde.krunner.desktop', '_launch', 'KRunner', 'KRunner', [134217760, 150994993, 16777362])
+set_shortcut('org.kde.spectacle.desktop', '_launch', 'Spectacle', 'Launch Spectacle', [301989971])
+PY
+then
+    printf '%s\n' 'warning: shortcuts were written but the live KDE session was unavailable' >&2
+fi
+{{ end -}}
