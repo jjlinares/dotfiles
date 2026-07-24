@@ -4,7 +4,7 @@
 set -eu
 
 # Relink when either managed plugin file changes.
-# plugin hash: {{ printf "%s\n%s" (include "dot_local/share/herdr/plugins/vscode-workspace/herdr-plugin.toml") (include "dot_local/share/herdr/plugins/vscode-workspace/executable_open-vscode.sh") | sha256sum }}
+# plugin hash: {{ printf "%s\n%s" (includeTemplate "herdr/plugins/vscode-workspace/herdr-plugin.toml" .) (includeTemplate "herdr/plugins/vscode-workspace/open-vscode.sh" .) | sha256sum }}
 plugin_dir={{ joinPath .chezmoi.homeDir ".local/share/herdr/plugins/vscode-workspace" | quote }}
 
 {{ $herdr | quote }} plugin link "$plugin_dir" >/dev/null
