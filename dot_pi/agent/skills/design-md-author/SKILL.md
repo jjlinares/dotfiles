@@ -93,7 +93,7 @@ typography:
 Run:
 
 ```bash
-python3 /home/jj/.agents/skills/design-md-author/scripts/validate_design_md.py DESIGN.md
+python3 "$HOME/.pi/agent/skills/design-md-author/scripts/validate_design_md.py" DESIGN.md
 ```
 
 Fix reported errors before finalizing. Warnings may remain only when intentionally scoped.

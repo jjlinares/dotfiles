@@ -13,7 +13,7 @@ Operate open tldraw offline canvases through the app's authenticated local HTTP 
 Require tldraw offline to be running. Use the bundled `scripts/tq` helper for API calls. Resolve it relative to this skill's directory; the standard dotfiles installation exposes it here:
 
 ```bash
-TQ="$HOME/.agents/skills/tldraw-offline/scripts/tq"
+TQ="$HOME/.pi/agent/skills/tldraw-offline/scripts/tq"
 sh "$TQ" POST /api/search 'return await api.getDocs()'
 ```
 

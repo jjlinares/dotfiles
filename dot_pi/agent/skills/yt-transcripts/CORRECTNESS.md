@@ -29,7 +29,7 @@ The raw `.vtt` is the source of truth. The cleaned `.md` is a normalized reading
 Run the unit tests:
 
 ```bash
-cd /home/jj/.agents/skills/yt-transcripts/scripts
+cd "$HOME/.pi/agent/skills/yt-transcripts/scripts"
 python -m unittest test_youtube_transcript_ingest.py
 python -m py_compile youtube_transcript_ingest.py
 ```

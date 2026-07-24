@@ -1,0 +1,66 @@
+#!/bin/bash
+set -euo pipefail
+
+# One-time migration from the former ~/.agents fan-out manager and legacy links.
+python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+import shutil
+
+home = Path.home()
+state_path = home / ".local/state/chezmoi/pi-resources.json"
+owned = {}
+if state_path.is_file() and not state_path.is_symlink():
+    try:
+        state = json.loads(state_path.read_text())
+        if state.get("version") == 1 and isinstance(state.get("owned"), dict):
+            owned = state["owned"]
+    except (OSError, ValueError):
+        pass
+
+
+def remove(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.is_dir():
+        shutil.rmtree(path)
+
+
+for category in ("agents", "skills"):
+    root = home / ".agents" / category
+    names = owned.get(category, [])
+    if isinstance(names, list):
+        for name in names:
+            if isinstance(name, str) and name not in {"", ".", ".."} and Path(name).name == name:
+                remove(root / name)
+
+    if root.is_dir() and not root.is_symlink():
+        for child in root.iterdir():
+            if child.is_symlink() and "/projects/dotfiles/agents/" in os.readlink(child):
+                child.unlink()
+        try:
+            root.rmdir()
+        except OSError:
+            pass
+    elif root.is_symlink() and "/projects/dotfiles/agents/" in os.readlink(root):
+        root.unlink()
+
+old_instructions = home / ".agents/AGENTS.md"
+if owned:
+    remove(old_instructions)
+elif old_instructions.is_symlink() and "/projects/dotfiles/agents/" in os.readlink(old_instructions):
+    old_instructions.unlink()
+
+extension_names = owned.get("extensions", [])
+if not isinstance(extension_names, list):
+    extension_names = []
+for name in extension_names:
+    if isinstance(name, str) and name not in {"", ".", ".."} and Path(name).name == name:
+        stamp = home / ".pi/agent/extensions" / name / ".chezmoi-deps.sha256"
+        if stamp.is_file() or stamp.is_symlink():
+            stamp.unlink()
+
+if state_path.is_file() or state_path.is_symlink():
+    state_path.unlink()
+PY

@@ -33,7 +33,7 @@ Use the bundled script for repeatability.
 Wiki output:
 
 ```bash
-python /home/jj/.agents/skills/yt-transcripts/scripts/youtube_transcript_ingest.py \
+python "$HOME/.pi/agent/skills/yt-transcripts/scripts/youtube_transcript_ingest.py" \
   'https://www.youtube.com/watch?v=VIDEO_ID' \
   --wiki-dir /home/jj/projects/knowledge/investing
 ```
@@ -41,7 +41,7 @@ python /home/jj/.agents/skills/yt-transcripts/scripts/youtube_transcript_ingest.
 User-directed file output:
 
 ```bash
-python /home/jj/.agents/skills/yt-transcripts/scripts/youtube_transcript_ingest.py \
+python "$HOME/.pi/agent/skills/yt-transcripts/scripts/youtube_transcript_ingest.py" \
   'https://www.youtube.com/watch?v=VIDEO_ID' \
   --output-dir /path/requested/by/user
 ```
@@ -49,7 +49,7 @@ python /home/jj/.agents/skills/yt-transcripts/scripts/youtube_transcript_ingest.
 Temporary/no-save output:
 
 ```bash
-python /home/jj/.agents/skills/yt-transcripts/scripts/youtube_transcript_ingest.py \
+python "$HOME/.pi/agent/skills/yt-transcripts/scripts/youtube_transcript_ingest.py" \
   'https://www.youtube.com/watch?v=VIDEO_ID' \
   --stdout > /tmp/youtube-transcript.md
 ```
@@ -97,12 +97,12 @@ When the user asks whether transcript cleaning is correct, whether useful VTT te
 Run tests after editing the script:
 
 ```bash
-cd /home/jj/.agents/skills/yt-transcripts/scripts
+cd "$HOME/.pi/agent/skills/yt-transcripts/scripts"
 python -m unittest test_youtube_transcript_ingest.py
 ```
 
 Run `--help` to verify the CLI loads:
 
 ```bash
-python /home/jj/.agents/skills/yt-transcripts/scripts/youtube_transcript_ingest.py --help
+python "$HOME/.pi/agent/skills/yt-transcripts/scripts/youtube_transcript_ingest.py" --help
 ```
