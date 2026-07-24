@@ -1,0 +1,519 @@
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { runSubagents } from "./executor.mjs";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { keyHint, SessionManager } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
+import { Type } from "typebox";
+import {
+	RUN_ROOT,
+	buildRunConfig,
+	ensureDir,
+	findRunDir,
+	formatStatus,
+	needsFork,
+	notifyCompletion,
+	randomId,
+	readJson,
+	statusPath,
+	type ContextMode,
+	type NotifyMode,
+	type RunConfig,
+	type RunStatus,
+	type SubagentParams,
+} from "./core.ts";
+import { projectRunStatus, SubagentReadModel, type ChildSnapshot } from "./read-model.ts";
+import { CompletionNotificationState, type NotificationRecord } from "./notification-state.ts";
+import { openSubagentsDashboard } from "./ui/index.ts";
+
+type PreparedRun = { id: string; dir: string; notify: NotifyMode; count: number; config: RunConfig; configPath: string };
+
+const RUNNER_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "runner.mjs");
+const STATUS_ID = "subagents";
+
+const ToolOverride = Type.Unsafe({
+	anyOf: [
+		{ type: "array", items: { type: "string" } },
+		{ type: "string" },
+		{ const: false },
+	],
+	description: "Child tool allowlist as comma-separated string/array, or false for --no-tools. Omit for normal Pi tools.",
+});
+
+const ThinkingSchema = Type.String({ enum: ["off", "minimal", "low", "medium", "high", "xhigh"], description: "Child thinking level passed to Pi --thinking. Default medium." });
+
+const SubagentSchema = Type.Object({
+	profile: Type.Optional(Type.String({ description: "Local YAML profile path for subagent defaults. Inline fields take priority." })),
+	name: Type.Optional(Type.String({ description: "Human-readable child label." })),
+	task: Type.String({ description: "User task for this child Pi session." }),
+	appendSystemPrompt: Type.Optional(Type.String({ description: "Optional role/config prompt appended to Pi's core system prompt for this child. No prompt override is passed when omitted." })),
+	context: Type.Optional(Type.String({ enum: ["fresh", "fork"] })),
+	model: Type.Optional(Type.String()),
+	thinking: Type.Optional(ThinkingSchema),
+	tools: Type.Optional(ToolOverride),
+	cwd: Type.Optional(Type.String()),
+}, { additionalProperties: false });
+
+const SubagentParamsSchema = Type.Object({
+	action: Type.Optional(Type.String({ enum: ["status"], description: "Use status to inspect runs." })),
+	id: Type.Optional(Type.String({ description: "Run id or prefix for status." })),
+
+	appendSystemPrompt: Type.Optional(Type.String({ description: "Optional default role/config prompt appended to Pi's core system prompt; used by subagents that omit appendSystemPrompt. No prompt override is passed when omitted." })),
+	subagents: Type.Optional(Type.Array(SubagentSchema, { minItems: 1, description: "One or more child subagents to run." })),
+
+	context: Type.Optional(Type.String({ enum: ["fresh", "fork"], description: "Default fresh." })),
+	model: Type.Optional(Type.String({ description: "Default model override for children." })),
+	thinking: Type.Optional(ThinkingSchema),
+	tools: Type.Optional(ToolOverride),
+	cwd: Type.Optional(Type.String({ description: "Default child cwd." })),
+	concurrency: Type.Optional(Type.Integer({ minimum: 1, maximum: 16, description: "Parallel child concurrency. Default 4." })),
+	timeoutMs: Type.Optional(Type.Integer({ minimum: 1, description: "Hard per-child wall-clock kill timeout in milliseconds. Omit unless the user explicitly requested a cutoff; active children are killed when this expires." })),
+	includeJsonl: Type.Optional(Type.Boolean({ description: "Write raw child JSONL files, capped at 50MB per child. Default false." })),
+	async: Type.Optional(Type.Boolean({ description: "Run in background and return immediately. Default false: foreground/blocking." })),
+	notify: Type.Optional(Type.String({ enum: ["tui", "followUp", "none"], description: "Background completion behavior. Default tui; followUp wakes parent agent. Ignored for foreground runs." })),
+}, { additionalProperties: false });
+
+function createForkResolver(ctx: ExtensionContext, context: ContextMode): (index: number) => string | undefined {
+	if (context !== "fork") return () => undefined;
+	const manager = ctx.sessionManager as unknown as {
+		getSessionFile(): string | undefined;
+		getLeafId(): string | null;
+		getSessionDir?(): string;
+		openSession?: (file: string, dir?: string) => { createBranchedSession(leafId: string): string | undefined };
+	};
+	const parentSessionFile = manager.getSessionFile();
+	if (!parentSessionFile) throw new Error("Forked subagent context requires a persisted parent session.");
+	const leafId = manager.getLeafId();
+	if (!leafId) throw new Error("Forked subagent context requires a current session leaf.");
+	const sessionDir = manager.getSessionDir?.();
+	const cache = new Map<number, string>();
+	return (index: number) => {
+		const cached = cache.get(index);
+		if (cached) return cached;
+		const source = manager.openSession?.(parentSessionFile, sessionDir) ?? SessionManager.open(parentSessionFile, sessionDir);
+		const sessionFile = source.createBranchedSession(leafId);
+		if (!sessionFile) throw new Error("Session manager did not return a forked session file.");
+		cache.set(index, sessionFile);
+		return sessionFile;
+	};
+}
+
+function prepareRun(params: SubagentParams, ctx: ExtensionContext): PreparedRun {
+	const runId = randomId();
+	const runDir = path.join(RUN_ROOT, runId);
+	ensureDir(runDir);
+	const forkSessionForIndex = needsFork(params, ctx.cwd) ? createForkResolver(ctx, "fork") : undefined;
+	const config = buildRunConfig({
+		params,
+		ctxCwd: ctx.cwd,
+		runId,
+		runDir,
+		parentSessionId: ctx.sessionManager.getSessionId(),
+		forkSessionForIndex,
+	});
+	config.piScript = process.argv[1];
+	const configPath = path.join(runDir, "config.json");
+	fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
+	return { id: runId, dir: runDir, notify: config.notify, count: config.subagents.length, config, configPath };
+}
+
+function compactPath(value: string | undefined): string {
+	if (!value) return "";
+	const home = process.env.HOME;
+	const shortened = home && value.startsWith(home) ? `~${value.slice(home.length)}` : value;
+	return shortened.length > 80 ? `…${shortened.slice(-79)}` : shortened;
+}
+
+function duration(ms: number): string {
+	const seconds = Math.max(0, Math.round(ms / 1000));
+	if (seconds < 60) return `${seconds}s`;
+	const minutes = Math.floor(seconds / 60);
+	const rest = seconds % 60;
+	return `${minutes}m${rest ? ` ${rest}s` : ""}`;
+}
+
+function compactNumber(value: number): string {
+	if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}m`;
+	if (value >= 1_000) return `${Math.round(value / 100) / 10}k`;
+	return String(value);
+}
+
+function subagentTokens(task: ChildSnapshot): number {
+	return task.usage?.totalTokens || ((task.usage?.input ?? 0) + (task.usage?.output ?? 0));
+}
+
+function subagentRuntime(task: ChildSnapshot): string {
+	if (!task.startedAt) return "";
+	return duration((task.completedAt ?? Date.now()) - task.startedAt);
+}
+
+function truncateText(value: string, max = Math.max(80, (process.stdout.columns || 120) - 12)): string {
+	return value.length > max ? `${value.slice(0, Math.max(0, max - 3))}...` : value;
+}
+
+const COMPACT_SUBAGENT_DETAIL_LINES = 3;
+const EXPANDED_SUBAGENT_DETAIL_LINES = 6;
+
+function subagentOutputLines(task: ChildSnapshot, limit: number): string[] {
+	const recent = (task.recentOutput ?? []).filter((line) => line.trim());
+	if (recent.length > 0) return recent.slice(-limit).map((line) => truncateText(line.trim(), 120));
+	if (task.preview && !task.preview.startsWith("tool:")) return [truncateText(task.preview.trim(), 120)];
+	return [];
+}
+
+function latestToolLine(task: ChildSnapshot): string | undefined {
+	if (task.currentTool) {
+		const args = task.currentToolArgs || (task.currentPath ? String(task.currentPath) : "");
+		return truncateText(`tool: ${task.currentTool}${args ? ` ${args}` : ""}`);
+	}
+	const tool = task.recentTools?.at(-1);
+	if (!tool) return undefined;
+	return truncateText(`tool: ${tool.tool}${tool.args ? ` ${tool.args}` : ""}`);
+}
+
+function fixedSubagentDetailLines(
+	task: ChildSnapshot,
+	theme: ExtensionContext["ui"]["theme"],
+	expanded: boolean,
+): string[] {
+	const limit = expanded ? EXPANDED_SUBAGENT_DETAIL_LINES : COMPACT_SUBAGENT_DETAIL_LINES;
+	const details: string[] = [];
+
+	if (task.state === "failed" && task.error) details.push(theme.fg("error", `     ${truncateText(task.error.split("\n", 1)[0], 120)}`));
+	else if (task.state === "cancelled" && task.reason) details.push(theme.fg("warning", `     ${truncateText(task.reason.split("\n", 1)[0], 120)}`));
+	else if (task.warning) details.push(theme.fg("warning", `     warning: ${truncateText(task.warning.split("\n", 1)[0], 110)}`));
+
+	const currentOrRecentTool = latestToolLine(task);
+	if (currentOrRecentTool) details.push(theme.fg("dim", `     ${currentOrRecentTool}`));
+	if (expanded) {
+		for (const tool of task.recentTools?.slice(-3, -1) ?? []) {
+			details.push(theme.fg("dim", `     ${truncateText(`tool: ${tool.tool}${tool.args ? ` ${tool.args}` : ""}`)}`));
+		}
+	}
+
+	for (const line of subagentOutputLines(task, limit)) details.push(theme.fg("dim", `     ${line}`));
+	if (expanded) {
+		if (task.outputFile) details.push(theme.fg("dim", `     output: ${compactPath(task.outputFile)}`));
+		if (task.stdoutFile) details.push(theme.fg("dim", `     jsonl: ${compactPath(task.stdoutFile)}`));
+	}
+
+	const fixed = details.slice(0, limit);
+	while (fixed.length < limit) fixed.push("");
+	return fixed;
+}
+
+function subagentGlyph(state: string, theme: ExtensionContext["ui"]["theme"]): string {
+	if (state === "complete") return theme.fg("success", "✓");
+	if (state === "cancelled") return theme.fg("warning", "−");
+	if (state === "failed") return theme.fg("error", "✗");
+	if (state === "running") return theme.fg("accent", "◐");
+	return theme.fg("dim", "◦");
+}
+
+function summarizeUsage(children: readonly ChildSnapshot[]): { tools: number; turns: number; tokens: number; cost: number } {
+	let tools = 0;
+	let turns = 0;
+	let tokens = 0;
+	let cost = 0;
+	for (const task of children) {
+		tools += task.toolCount ?? 0;
+		turns += task.usage?.turns ?? 0;
+		tokens += subagentTokens(task);
+		cost += task.usage?.cost ?? 0;
+	}
+	return { tools, turns, tokens, cost };
+}
+
+function renderStatusCard(
+	status: RunStatus,
+	runDir: string | undefined,
+	theme: ExtensionContext["ui"]["theme"],
+	expanded: boolean,
+	finalText?: string,
+): Text {
+	const children = projectRunStatus(status, runDir ?? path.join(RUN_ROOT, status.id));
+	const done = children.filter((task) => task.state === "complete" || task.state === "cancelled" || task.state === "failed").length;
+	const cancelled = children.filter((task) => task.state === "cancelled").length;
+	const failed = children.filter((task) => task.state === "failed").length;
+	const running = children.filter((task) => task.state === "running").length;
+	const queued = children.filter((task) => task.state === "queued").length;
+	const elapsed = duration((status.completedAt ?? Date.now()) - status.startedAt);
+	const usage = summarizeUsage(children);
+	const stateGlyph = status.state === "complete" ? theme.fg("success", "✓") : status.state === "cancelled" ? theme.fg("warning", "−") : status.state === "failed" ? theme.fg("error", "✗") : theme.fg("accent", "◐");
+	const stats = [
+		`${done}/${status.subagents.length}`,
+		running ? `${running} running` : "",
+		queued ? `${queued} queued` : "",
+		cancelled ? `${cancelled} cancelled` : "",
+		failed ? `${failed} failed` : "",
+		usage.tools ? `${usage.tools} tools` : "",
+		usage.turns ? `${usage.turns} turns` : "",
+		usage.tokens ? `${compactNumber(usage.tokens)} tok` : "",
+		usage.cost ? `$${usage.cost.toFixed(4)}` : "",
+		elapsed,
+	].filter(Boolean).join(" · ");
+	const lines = [`${stateGlyph} ${theme.fg("toolTitle", theme.bold("subagents"))} ${theme.fg("dim", `· ${status.state} · ${stats}`)}`];
+	if (!expanded && status.state === "running") lines.push(theme.fg("accent", `  ${keyHint("app.tools.expand", "for details")}`));
+
+	for (const task of children) {
+		const label = `${task.index + 1}. ${task.name}`;
+		const tokenCount = subagentTokens(task);
+		const subagentStats = [
+			task.state,
+			expanded && task.context ? `context ${task.context}` : "",
+			expanded && task.model ? `model ${task.model}` : "",
+			expanded && task.thinking ? `thinking ${task.thinking}` : "",
+			task.toolCount ? `${task.toolCount} tools` : "",
+			task.usage?.turns ? `${task.usage.turns} turns` : "",
+			tokenCount ? `${compactNumber(tokenCount)} tok` : "",
+			task.usage?.cost ? `$${task.usage.cost.toFixed(4)}` : "",
+			subagentRuntime(task),
+		].filter(Boolean).join(" · ");
+		lines.push(`  ${subagentGlyph(task.state, theme)} ${theme.bold(label)} ${theme.fg("dim", `· ${subagentStats}`)}`);
+
+		lines.push(...fixedSubagentDetailLines(task, theme, expanded));
+	}
+	if (expanded && runDir) lines.push("", theme.fg("dim", `Artifacts: ${compactPath(runDir)}`));
+	if (expanded && finalText && status.state !== "running") lines.push("", finalText.trim());
+	return new Text(lines.join("\n"), 0, 0);
+}
+
+function statusFromDetails(details: unknown): { status: RunStatus; dir?: string } | undefined {
+	if (!details || typeof details !== "object") return undefined;
+	const record = details as { status?: RunStatus; dir?: string };
+	if (record.status?.subagents) return { status: record.status, dir: record.dir };
+	return undefined;
+}
+
+function launchAsyncRun(params: SubagentParams, ctx: ExtensionContext): { id: string; dir: string; notify: NotifyMode; count: number } {
+	const run = prepareRun(params, ctx);
+	const child = spawn(process.execPath, [RUNNER_PATH, run.configPath], {
+		cwd: run.config.cwd,
+		detached: true,
+		stdio: "ignore",
+		env: { ...process.env, PI_SUBAGENTS_PI_SCRIPT: process.argv[1] },
+	});
+	child.unref();
+	return { id: run.id, dir: run.dir, notify: run.notify, count: run.count };
+}
+
+async function runForeground(
+	params: SubagentParams,
+	ctx: ExtensionContext,
+	signal: AbortSignal | undefined,
+	onUpdate: ((result: { content: Array<{ type: "text"; text: string }>; details: unknown; isError?: boolean }) => void) | undefined,
+) {
+	const run = prepareRun(params, ctx);
+	let lastStatusText = "";
+	const emitUpdate = (status: RunStatus) => {
+		const statusText = formatStatus(run.dir);
+		if (statusText === lastStatusText) return;
+		lastStatusText = statusText;
+		onUpdate?.({ content: [{ type: "text", text: `Subagent run ${run.id} ${status.state} (${status.subagents.filter((task) => task.state === "complete" || task.state === "cancelled" || task.state === "failed").length}/${status.subagents.length}).` }], details: { ...run, status } });
+	};
+	const { status, resultText } = await runSubagents(run.config, { signal, onUpdate: emitUpdate });
+	return {
+		content: [{ type: "text" as const, text: resultText }],
+		details: { ...run, status },
+		...(status.state === "failed" ? { isError: true } : {}),
+	};
+}
+
+export default function registerSubagents(pi: ExtensionAPI): void {
+	if (process.env.PI_SIMPLE_SUBAGENT_CHILD === "1") return;
+	ensureDir(RUN_ROOT);
+	let readModel: SubagentReadModel | undefined;
+	let sessionCtx: ExtensionContext | undefined;
+	let unsubscribe: (() => void) | undefined;
+	let notificationRetry: NodeJS.Timeout | undefined;
+	let activeDashboardCloser: (() => void) | undefined;
+	const notifications = new CompletionNotificationState(3);
+
+	const closeActiveDashboard = () => {
+		const close = activeDashboardCloser;
+		activeDashboardCloser = undefined;
+		try { close?.(); } catch {}
+	};
+
+	const updateFooter = (ctx: ExtensionContext, snapshots: readonly ChildSnapshot[]) => {
+		const active = snapshots.filter((snapshot) => snapshot.runState === "running");
+		if (active.length === 0) {
+			ctx.ui.setStatus(STATUS_ID, undefined);
+			return;
+		}
+		const running = active.filter((snapshot) => snapshot.state === "running").length;
+		const queued = active.filter((snapshot) => snapshot.state === "queued").length;
+		const completed = active.filter((snapshot) => snapshot.state === "complete").length;
+		const cancelled = active.filter((snapshot) => snapshot.state === "cancelled").length;
+		const failed = active.filter((snapshot) => snapshot.state === "failed").length;
+		const counts = [
+			`${running} running`,
+			...(queued ? [`${queued} queued`] : []),
+			`${completed} completed`,
+			`${cancelled} cancelled`,
+			`${failed} failed`,
+		].join(" · ");
+		ctx.ui.setStatus(STATUS_ID, `subagents: ${counts} · /subagents`);
+	};
+
+	const dispatchNotification = (snapshot: ChildSnapshot, tracked: Readonly<NotificationRecord>) => {
+		const ctx = sessionCtx;
+		if (!ctx) throw new Error("Subagent session is no longer active.");
+		notifyCompletion({
+			notify: tracked.notify,
+			status: {
+				id: snapshot.parentRunId,
+				state: snapshot.runState,
+				cwd: snapshot.cwd,
+				notify: tracked.notify,
+				startedAt: snapshot.runStartedAt,
+				updatedAt: snapshot.runUpdatedAt,
+				...(snapshot.runCompletedAt !== undefined ? { completedAt: snapshot.runCompletedAt } : {}),
+				subagents: [],
+			},
+			runDir: tracked.runDir,
+			hasUI: ctx.hasUI,
+			isIdle: ctx.isIdle(),
+			sendUserMessage: (message, options) => pi.sendUserMessage(message, options),
+			uiNotify: (message, type) => ctx.ui.notify(message, type),
+		});
+	};
+
+	const clearNotificationRetry = () => {
+		if (notificationRetry) clearTimeout(notificationRetry);
+		notificationRetry = undefined;
+	};
+
+	const handleSnapshots = (snapshots: readonly ChildSnapshot[]) => {
+		const ctx = sessionCtx;
+		if (!ctx) return;
+		try { updateFooter(ctx, snapshots); } catch {}
+		const { retryNeeded } = notifications.observe(snapshots, dispatchNotification);
+		if (!retryNeeded) clearNotificationRetry();
+		else if (!notificationRetry) {
+			notificationRetry = setTimeout(() => {
+				notificationRetry = undefined;
+				const current = readModel?.list();
+				if (current) {
+					try { handleSnapshots(current); } catch {}
+				}
+			}, 250);
+			notificationRetry.unref?.();
+		}
+	};
+
+	const safeHandleSnapshots = (snapshots: readonly ChildSnapshot[]) => {
+		try { handleSnapshots(snapshots); } catch {}
+	};
+
+	pi.registerCommand("subagents", {
+		description: "Open the live subagent dashboard",
+		handler: async (_args, ctx) => {
+			if (!readModel) {
+				if (ctx.hasUI) ctx.ui.notify("Subagent dashboard is not available for this session.", "warning");
+				return;
+			}
+			await openSubagentsDashboard(ctx, readModel, (close) => {
+				closeActiveDashboard();
+				activeDashboardCloser = close;
+				return () => {
+					if (activeDashboardCloser === close) activeDashboardCloser = undefined;
+				};
+			});
+		},
+	});
+
+	pi.registerTool({
+		name: "subagent",
+		label: "Subagent",
+		description: [
+			"Launch foreground or async/background child Pi sessions for orchestration fanout.",
+			"Pass subagents[] plus optional appendSystemPrompt/model/thinking/tools/cwd/context defaults.",
+			"The extension adds no default child role or safety prompt; the orchestrator must define instructions and tool access explicitly.",
+			"Default is foreground/blocking; set async:true for background execution.",
+			"For background runs, default notify is TUI completion notification; set notify:'followUp' to wake the parent agent.",
+		].join(" "),
+		parameters: SubagentParamsSchema,
+		async execute(_id, rawParams, signal, onUpdate, ctx) {
+			const params = rawParams as SubagentParams;
+			if (params.action === "status") {
+				const parentSessionId = ctx.sessionManager.getSessionId();
+				const runDir = params.id ? findRunDir(params.id, RUN_ROOT, parentSessionId) : undefined;
+				const candidateStatus = runDir ? readJson<RunStatus>(statusPath(runDir)) : undefined;
+				const status = candidateStatus?.parentSessionId === parentSessionId ? candidateStatus : undefined;
+				return {
+					content: [{
+						type: "text",
+						text: params.id && !runDir
+							? `No subagent run found for '${params.id}' in this session.`
+							: formatStatus(runDir, RUN_ROOT, Date.now(), parentSessionId),
+					}],
+					details: status ? { status, dir: runDir } : {},
+				};
+			}
+			try {
+				if (params.async === true) {
+					const run = launchAsyncRun(params, ctx);
+					notifications.trackLaunch(run.id, run.dir, run.notify);
+					return {
+						content: [{
+							type: "text",
+							text: `Started subagent run ${run.id} (${run.count} subagent${run.count === 1 ? "" : "s"}).\nStatus: subagent({ action: "status", id: "${run.id}" })\nDir: ${run.dir}`,
+						}],
+						details: run,
+					};
+				}
+				return await runForeground(params, ctx, signal, onUpdate);
+			} catch (error) {
+				return {
+					content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }],
+					isError: true,
+					details: {},
+				};
+			}
+		},
+		renderCall(args, theme) {
+			if ((args as SubagentParams).action === "status") {
+				return new Text(`${theme.fg("toolTitle", theme.bold("subagent "))}status ${(args as SubagentParams).id ?? ""}`, 0, 0);
+			}
+			const params = args as SubagentParams;
+			const count = params.subagents?.length ?? 0;
+			const mode = params.async === true ? "async" : "foreground";
+			return new Text(`${theme.fg("toolTitle", theme.bold("subagent "))}${mode} ${theme.fg("accent", String(count))} subagent${count === 1 ? "" : "s"}`, 0, 0);
+		},
+		renderResult(result, options, theme) {
+			const rendered = statusFromDetails(result.details);
+			if (rendered) {
+				const finalText = result.content.find((item) => item.type === "text")?.text;
+				return renderStatusCard(rendered.status, rendered.dir, theme, Boolean(options?.expanded), finalText);
+			}
+			const text = result.content.find((item) => item.type === "text")?.text ?? "";
+			return new Text(theme.fg(result.isError ? "error" : "muted", text), 0, 0);
+		},
+	});
+
+	pi.on("session_start", (_event, ctx) => {
+		unsubscribe?.();
+		readModel?.dispose();
+		clearNotificationRetry();
+		sessionCtx = ctx;
+		readModel = new SubagentReadModel(RUN_ROOT, ctx.sessionManager.getSessionId());
+		notifications.seed(readModel.list());
+		safeHandleSnapshots(readModel.list());
+		unsubscribe = readModel.subscribe(safeHandleSnapshots);
+	});
+
+	pi.on("session_shutdown", (_event, ctx) => {
+		unsubscribe?.();
+		unsubscribe = undefined;
+		readModel?.dispose();
+		readModel = undefined;
+		clearNotificationRetry();
+		notifications.clear();
+		closeActiveDashboard();
+		sessionCtx = undefined;
+		ctx.ui.setStatus(STATUS_ID, undefined);
+	});
+}

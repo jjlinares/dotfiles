@@ -1,2 +1,6 @@
 # Runtime-generated Oh My Zsh completion caches.
 .oh-my-zsh/cache/**
+
+# Canonical Pi resources are installed by run_after_sync-pi-resources.sh.
+pi/
+pi/**

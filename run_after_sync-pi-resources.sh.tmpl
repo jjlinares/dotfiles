@@ -1,0 +1,20 @@
+{{- $manager := joinPath .chezmoi.sourceDir "pi/manage.py" -}}
+{{- $resourceState := output "python3" $manager "check" .chezmoi.homeDir | trim -}}
+{{- if ne $resourceState "clean" -}}
+#!/bin/bash
+set -e
+
+export NVM_DIR="$HOME/.nvm"
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+    # shellcheck disable=SC1091
+    . "$NVM_DIR/nvm.sh"
+    nvm use default >/dev/null 2>&1 || true
+fi
+
+command -v npm >/dev/null 2>&1 || {
+    printf '%s\n' 'error: npm is required to install Pi extension dependencies' >&2
+    exit 1
+}
+
+python3 {{ $manager | quote }} apply {{ .chezmoi.homeDir | quote }}
+{{- end -}}
