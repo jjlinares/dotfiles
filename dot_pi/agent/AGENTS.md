@@ -22,7 +22,7 @@ Use subagents sparingly, when parallelism makes sense and only for read purposes
 
 When launching subagents, follow these guidelines:
 - Default to `openai-codex/gpt-5.6-terra` with high thinking when unsure and for general-purpose tasks.
-/ne- Use `openai-codex/gpt-5.6-sol` with high thinking only for complex tasks.
+- Use `openai-codex/gpt-5.6-sol` with high thinking only for complex tasks.
 - Default to fresh context with a self-contained task prompt. Fork only when inherited conversation history is essential; fresh context forces explicit delegation and reduces anchoring to the parent’s context.
 
 ## Think Before Coding
@@ -34,4 +34,3 @@ Before implementing:
 - If multiple interpretations exist, present them - don't pick silently.
 - If a simpler approach exists, say so. Push back when warranted.
 - If something is unclear, stop. Name what's confusing. Ask.
-
