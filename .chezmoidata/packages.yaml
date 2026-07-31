@@ -15,6 +15,11 @@ packages:
       - zsh
   kubernetes:
     minor: v1.35
+  gitRepositories:
+    - name: Oh My Zsh
+      url: https://github.com/ohmyzsh/ohmyzsh.git
+      destination: .oh-my-zsh
+      marker: oh-my-zsh.sh
   npmGlobals:
     - "@earendil-works/pi-coding-agent"
     - "@openai/codex"

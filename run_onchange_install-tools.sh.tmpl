@@ -10,6 +10,16 @@ fail() {
 export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/.opencode/bin:$PATH"
 mkdir -p "$HOME/.local/bin"
 
+# Clone source-based packages without managing their internal files.
+{{ range .packages.gitRepositories -}}
+repository="$HOME/{{ .destination }}"
+if [ ! -f "$repository/{{ .marker }}" ]; then
+    [ ! -e "$repository" ] || fail "{{ .name }} destination exists but is not a valid installation: $repository"
+    git clone --depth=1 {{ .url | quote }} "$repository" \
+        || fail "failed to install {{ .name }}"
+fi
+{{ end }}
+
 # Install the latest released NVM without allowing its installer to edit dotfiles.
 export NVM_DIR="$HOME/.nvm"
 if [ ! -s "$NVM_DIR/nvm.sh" ]; then
