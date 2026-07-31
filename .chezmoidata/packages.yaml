@@ -20,6 +20,11 @@ packages:
       url: https://github.com/ohmyzsh/ohmyzsh.git
       destination: .oh-my-zsh
       marker: oh-my-zsh.sh
+  installScripts:
+    bun:
+      url: https://bun.sh/install
+    pnpm:
+      url: https://get.pnpm.io/install.sh
   npmGlobals:
     - "@earendil-works/pi-coding-agent"
     - "@openai/codex"

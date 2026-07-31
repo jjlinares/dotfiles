@@ -47,12 +47,15 @@ if ! npm list --global --depth=0 {{ . | quote }} >/dev/null 2>&1; then
 fi
 {{ end }}
 
+{{ with .packages.installScripts.bun -}}
 # Bun's installer skips shell edits when its destination is already on PATH.
 export BUN_INSTALL="$HOME/.bun"
 if [ ! -x "$BUN_INSTALL/bin/bun" ]; then
-    curl -fsSL https://bun.sh/install | bash || fail "Bun installation failed"
+    curl -fsSL {{ .url | quote }} | bash || fail "Bun installation failed"
 fi
+{{ end }}
 
+{{ with .packages.installScripts.pnpm -}}
 # pnpm's installer always edits a shell file. Give it a disposable HOME while
 # keeping PNPM_HOME at its real destination, then discard the generated file.
 export PNPM_HOME="$HOME/.local/share/pnpm"
@@ -60,10 +63,11 @@ if [ ! -x "$PNPM_HOME/bin/pnpm" ] && [ ! -x "$PNPM_HOME/pnpm" ]; then
     temporary_home="$(mktemp -d)"
     touch "$temporary_home/.bashrc"
     HOME="$temporary_home" PNPM_HOME="$PNPM_HOME" SHELL=/bin/bash \
-        sh -c 'curl -fsSL https://get.pnpm.io/install.sh | sh -' \
+        sh -c {{ printf "curl -fsSL %s | sh -" .url | quote }} \
         || { rm -rf "$temporary_home"; fail "pnpm installation failed"; }
     rm -rf "$temporary_home"
 fi
+{{ end }}
 
 # Native coding agents. Their destinations are already on PATH, preventing
 # installer-written shell configuration.
