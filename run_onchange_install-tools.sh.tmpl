@@ -7,9 +7,6 @@ fail() {
     exit 1
 }
 
-export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/.opencode/bin:$PATH"
-mkdir -p "$HOME/.local/bin"
-
 # Clone source-based packages without managing their internal files.
 {{ range .packages.gitRepositories -}}
 repository="$HOME/{{ .destination }}"
@@ -68,16 +65,4 @@ if [ ! -x "$PNPM_HOME/bin/pnpm" ] && [ ! -x "$PNPM_HOME/pnpm" ]; then
     rm -rf "$temporary_home"
 fi
 {{ end }}
-
-# Native coding agents. Their destinations are already on PATH, preventing
-# installer-written shell configuration.
-if [ ! -x "$HOME/.local/bin/claude" ]; then
-    curl -fsSL https://claude.ai/install.sh | bash -s -- latest \
-        || fail "Claude Code installation failed"
-fi
-
-if [ ! -x "$HOME/.opencode/bin/opencode" ]; then
-    curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path \
-        || fail "OpenCode installation failed"
-fi
 {{ end -}}

@@ -27,5 +27,3 @@ packages:
       url: https://get.pnpm.io/install.sh
   npmGlobals:
     - "@earendil-works/pi-coding-agent"
-    - "@openai/codex"
-    - portless
