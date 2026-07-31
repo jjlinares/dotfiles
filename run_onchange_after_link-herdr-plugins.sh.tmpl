@@ -1,0 +1,13 @@
+{{- $herdr := lookPath "herdr" -}}
+{{- $pluginSource := joinPath .chezmoi.sourceDir "dot_local/share/herdr/plugins/vscode-workspace" -}}
+{{- if $herdr -}}
+#!/bin/sh
+set -eu
+
+# Relink when either managed plugin file changes.
+# plugin hash: {{ output "sha256sum" (joinPath $pluginSource "herdr-plugin.toml") (joinPath $pluginSource "executable_open-vscode.sh") | sha256sum }}
+plugin_dir={{ joinPath .chezmoi.homeDir ".local/share/herdr/plugins/vscode-workspace" | quote }}
+
+{{ $herdr | quote }} plugin link "$plugin_dir" >/dev/null
+{{ $herdr | quote }} server reload-config >/dev/null 2>&1 || true
+{{- end }}

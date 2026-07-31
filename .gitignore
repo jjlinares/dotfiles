@@ -1,2 +1,7 @@
-node_modules/
-.tmp/
+# Shell-generated completion caches
+.zcompdump*
+
+# Generated state inside canonical Pi resources
+dot_pi/agent/**/node_modules/
+dot_pi/agent/**/__pycache__/
+dot_pi/agent/**/*.pyc
