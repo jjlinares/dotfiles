@@ -4,7 +4,9 @@
 .profile
 .zprofile
 .gitconfig
-.config/shell
+# Keep these granular; ~/.config/shell/env.local is machine-local.
+.config/shell/env.sh
+.config/shell/interactive.sh
 .config/Code/User/settings.json
 .config/Code/User/keybindings.json
 .config/Cursor/User/settings.json

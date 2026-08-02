@@ -15,11 +15,41 @@ find "$DOTFILES_ROOT/files" \
 backup_root="$HOME/.local/state/dotfiles/backups/$(date +%Y%m%d-%H%M%S)-$$"
 backup_count=0
 
+prepare_link_parent() {
+    local relative="$1"
+    local parent="${relative%/*}"
+    local remaining component prefix destination managed_target
+
+    [ "$parent" != "$relative" ] || return 0
+
+    remaining="$parent"
+    prefix=""
+    while [ -n "$remaining" ]; do
+        component="${remaining%%/*}"
+        prefix="${prefix:+$prefix/}$component"
+        destination="$HOME/$prefix"
+        managed_target="$DOTFILES_ROOT/files/$prefix"
+
+        if [ -L "$destination" ] \
+            && [ -e "$managed_target" ] \
+            && [ "$(readlink -f -- "$destination" 2>/dev/null || true)" = "$(readlink -f -- "$managed_target")" ]; then
+            rm -- "$destination"
+            mkdir -- "$destination"
+            log "Replaced obsolete directory link: ~/$prefix"
+        fi
+
+        [ "$remaining" != "$component" ] || break
+        remaining="${remaining#*/}"
+    done
+}
+
 while IFS= read -r relative || [ -n "$relative" ]; do
     case "$relative" in
         ''|'#'*) continue ;;
         /*|../*|*/../*|*/..|.|./*|*/./*) die "unsafe link path in links.txt: $relative" ;;
     esac
+
+    prepare_link_parent "$relative"
 
     source_path="$DOTFILES_ROOT/files/$relative"
     destination="$HOME/$relative"
