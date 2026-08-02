@@ -1,0 +1,12 @@
+# Packages installed through apt.
+bash-completion
+ca-certificates
+curl
+gh
+git
+gnupg
+kustomize
+ripgrep
+tmux
+unzip
+zsh

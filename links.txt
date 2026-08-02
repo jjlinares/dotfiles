@@ -1,0 +1,21 @@
+# Paths relative to both files/ and $HOME. Directories are linked as a unit.
+.bashrc
+.zshrc
+.profile
+.zprofile
+.gitconfig
+.config/shell
+.config/Code/User/settings.json
+.config/Code/User/keybindings.json
+.config/Cursor/User/settings.json
+.config/Cursor/User/keybindings.json
+.config/herdr/config.toml
+.local/share/herdr/plugins/vscode-workspace
+.pi/agent/AGENTS.md
+.pi/agent/agents
+.pi/agent/skills
+.pi/agent/extensions/skill-interpolation
+.pi/agent/extensions/subagents
+.pi/agent/extensions/web-tools
+.pi/agent/extensions/zed-terminal-status
+.pi/agent/extensions/pi-devcontainer

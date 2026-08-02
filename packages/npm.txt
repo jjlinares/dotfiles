@@ -1,0 +1,2 @@
+# Global packages installed under NVM's default Node version.
+@earendil-works/pi-coding-agent
