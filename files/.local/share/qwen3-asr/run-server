@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export HF_HOME="$HOME/.cache/huggingface"
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+export HF_HUB_DISABLE_TELEMETRY=1
+
+exec "$HOME/.local/share/qwen3-asr/.venv/bin/python" \
+  "$HOME/.local/share/qwen3-asr/server.py" "$@"

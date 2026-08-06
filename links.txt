@@ -8,12 +8,19 @@
 # Keep these granular; ~/.config/shell/env.local is machine-local.
 .config/shell/env.sh
 .config/shell/interactive.sh
+.config/sunshine/apps.json
+.config/sunshine/sunshine.conf
+.config/systemd/user/qwen3-asr.service
+.config/systemd/user/sunshine.service
 .config/Code/User/settings.json
 .config/Code/User/keybindings.json
 .config/Cursor/User/settings.json
 .config/Cursor/User/keybindings.json
 .config/herdr/config.toml
 .local/share/herdr/plugins/vscode-workspace
+.local/bin/sunshine-kscreen-mode
+.local/share/qwen3-asr/server.py
+.local/share/qwen3-asr/run-server
 .pi/agent/AGENTS.md
 .pi/agent/agents
 .pi/agent/skills

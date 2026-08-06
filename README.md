@@ -43,6 +43,35 @@ git -C ~/projects/dotfiles diff
 source under `files/`, add its home-relative path to `links.txt`, then run
 `./install.sh links`.
 
+## Local Qwen3-ASR
+
+The repository owns the local transcription adapter, launcher, and systemd
+user unit. The Python environment and model weights remain machine-local and
+are never installed by the normal dotfiles workflow.
+
+Provision each phase explicitly:
+
+```bash
+./scripts/qwen3-asr.sh runtime  # pinned Python/CUDA dependencies
+./scripts/qwen3-asr.sh model    # explicit 3.9 GB model download
+./install.sh links              # adapter and user unit
+./scripts/qwen3-asr.sh enable   # start now and at future logins
+./scripts/qwen3-asr.sh status
+```
+
+The server listens only on `http://127.0.0.1:26007`. Configure OpenWhispr with
+base URL `http://127.0.0.1:26007/v1` and model
+`Qwen/Qwen3-ASR-1.7B-hf`.
+
+## Sunshine
+
+The repository owns Sunshine's non-secret application configuration, systemd
+user unit, and dynamic KScreen mode helper. Credentials and runtime state stay
+under the unmanaged portions of `~/.config/sunshine/`.
+
+The helper discovers a connected display instead of relying on unstable KDE
+connector names such as `DP-3` or `DP-4`.
+
 ## Pi ownership
 
 The repository links only stable Pi resources: instructions, agents, skills,

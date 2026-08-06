@@ -1,0 +1,16 @@
+[Unit]
+Description=Sunshine game stream host
+After=graphical-session.target avahi-daemon.service
+Wants=graphical-session.target
+
+[Service]
+Environment=DISPLAY=:1
+Environment=WAYLAND_DISPLAY=wayland-0
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+ExecStartPre=/bin/sh -c 'until test -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"; do sleep 1; done'
+ExecStart=/usr/bin/sunshine
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

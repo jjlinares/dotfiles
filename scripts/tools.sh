@@ -8,6 +8,14 @@ set -o pipefail
 command -v git >/dev/null 2>&1 || die "git is required"
 command -v curl >/dev/null 2>&1 || die "curl is required"
 
+if ! command -v uv >/dev/null 2>&1; then
+    log "Installing uv"
+    curl -LsSf https://astral.sh/uv/0.11.7/install.sh \
+        | env UV_NO_MODIFY_PATH=1 sh \
+        || die "uv installation failed"
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+
 zsh_root="$HOME/.oh-my-zsh"
 if [ ! -f "$zsh_root/oh-my-zsh.sh" ]; then
     [ ! -e "$zsh_root" ] || die "$zsh_root exists but is not a valid Oh My Zsh installation"

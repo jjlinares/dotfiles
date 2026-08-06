@@ -1,0 +1,21 @@
+[Unit]
+Description=Local Qwen3-ASR transcription server
+Documentation=https://github.com/jjlinares/dotfiles
+ConditionPathExists=%h/.local/share/qwen3-asr/.venv/bin/python
+ConditionPathExists=%h/.cache/huggingface/hub/models--Qwen--Qwen3-ASR-1.7B-hf/snapshots/bcd2b5b7f32b480ab5790554cfa8347f246a14f3/model.safetensors
+
+[Service]
+Type=simple
+Environment=HF_HOME=%h/.cache/huggingface
+Environment=HF_HUB_OFFLINE=1
+Environment=TRANSFORMERS_OFFLINE=1
+Environment=HF_HUB_DISABLE_TELEMETRY=1
+Environment=PYTHONUNBUFFERED=1
+ExecStart=%h/.local/share/qwen3-asr/.venv/bin/python %h/.local/share/qwen3-asr/server.py --host 127.0.0.1 --port 26007
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=120
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

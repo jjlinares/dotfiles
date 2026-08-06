@@ -2,6 +2,7 @@
 bash-completion
 ca-certificates
 curl
+ffmpeg
 gh
 git
 gnupg
