@@ -103,5 +103,13 @@
       "panel.border": "#24303a",
       "sideBar.border": "#24303a"
     }
-  }
+  },
+  "terminal.integrated.fontSize": 16,
+  "terminal.integrated.copyOnSelection": true,
+  "terminal.integrated.scrollback": 100000,
+  "terminal.integrated.persistentSessionScrollback": 100000,
+  "chat.disableAIFeatures": true,
+  "terminal.integrated.commandsToSkipShell": [
+    "pi-code.newSession"
+  ]
 }
