@@ -14,6 +14,8 @@ find "$DOTFILES_ROOT/files" \
 
 backup_root="$HOME/.local/state/dotfiles/backups/$(date +%Y%m%d-%H%M%S)-$$"
 backup_count=0
+link_paths=()
+load_link_manifest "$manifest" link_paths
 
 prepare_link_parent() {
     local relative="$1"
@@ -43,12 +45,7 @@ prepare_link_parent() {
     done
 }
 
-while IFS= read -r relative || [ -n "$relative" ]; do
-    case "$relative" in
-        ''|'#'*) continue ;;
-        /*|../*|*/../*|*/..|.|./*|*/./*) die "unsafe link path in links.txt: $relative" ;;
-    esac
-
+for relative in "${link_paths[@]}"; do
     prepare_link_parent "$relative"
 
     source_path="$DOTFILES_ROOT/files/$relative"
@@ -75,7 +72,7 @@ while IFS= read -r relative || [ -n "$relative" ]; do
     mkdir -p "$(dirname -- "$destination")"
     ln -s "$source_path" "$destination"
     log "Linked ~/$relative"
-done < "$manifest"
+done
 
 if [ "$backup_count" -gt 0 ]; then
     log "Saved $backup_count backup(s) under $backup_root"

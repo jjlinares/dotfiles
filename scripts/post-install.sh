@@ -13,18 +13,25 @@ fi
 
 command -v npm >/dev/null 2>&1 || die "npm is required to install Pi extension dependencies"
 
-while IFS= read -r relative || [ -n "$relative" ]; do
-    case "$relative" in
-        .pi/agent/extensions/*) ;;
-        *) continue ;;
-    esac
+install_extension_dependencies() {
+    local extension="$1"
 
-    extension="$DOTFILES_ROOT/files/$relative"
-    [ -f "$extension/package.json" ] || continue
+    [ -d "$extension" ] || return 0
+    [ -f "$extension/package.json" ] || return 0
     [ -f "$extension/package-lock.json" ] || die "missing package-lock.json: $extension"
-    log "Installing dependencies for ${relative##*/}"
+    log "Installing dependencies for ${extension##*/}"
     npm ci --prefix "$extension" --omit=peer --legacy-peer-deps
-done < "$DOTFILES_ROOT/links.txt"
+}
+
+link_paths=()
+load_link_manifest "$DOTFILES_ROOT/links.txt" link_paths
+for relative in "${link_paths[@]}"; do
+    case "$relative" in
+        .pi/agent/extensions/*)
+            install_extension_dependencies "$DOTFILES_ROOT/files/$relative"
+            ;;
+    esac
+done
 
 plugin_dir="$HOME/.local/share/herdr/plugins/vscode-workspace"
 if command -v herdr >/dev/null 2>&1; then

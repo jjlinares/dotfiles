@@ -1,4 +1,5 @@
 # Paths relative to both files/ and $HOME. Directories are linked as a unit.
+# A trailing /* links each direct child while preserving unmanaged siblings.
 .bashrc
 .zshrc
 .profile
@@ -16,8 +17,4 @@
 .pi/agent/AGENTS.md
 .pi/agent/agents
 .pi/agent/skills
-.pi/agent/extensions/skill-interpolation
-.pi/agent/extensions/subagents
-.pi/agent/extensions/web-tools
-.pi/agent/extensions/zed-terminal-status
-.pi/agent/extensions/pi-devcontainer
+.pi/agent/extensions/*
