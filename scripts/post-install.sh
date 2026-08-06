@@ -27,6 +27,11 @@ link_paths=()
 load_link_manifest "$DOTFILES_ROOT/links.txt" link_paths
 for relative in "${link_paths[@]}"; do
     case "$relative" in
+        .pi/agent/extensions)
+            for extension in "$DOTFILES_ROOT/files/$relative"/*; do
+                install_extension_dependencies "$extension"
+            done
+            ;;
         .pi/agent/extensions/*)
             install_extension_dependencies "$DOTFILES_ROOT/files/$relative"
             ;;

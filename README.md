@@ -46,6 +46,5 @@ source under `files/`, add its home-relative path to `links.txt`, then run
 ## Pi ownership
 
 The repository links only stable Pi resources: instructions, agents, skills,
-and its extension entries. Unmanaged extensions and runtime state remain local,
-including credentials, settings, trust data, sessions, history, binaries, and
-Pi's npm directory.
+and the extensions directory. Runtime state remains local, including credentials,
+settings, trust data, sessions, history, binaries, and Pi's npm directory.
