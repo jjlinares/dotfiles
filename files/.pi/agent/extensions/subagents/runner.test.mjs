@@ -254,7 +254,7 @@ test("runner accumulates usage across assistant turns", async () => {
   assert.equal(status.subagents[0].usage.cost, 0.04);
 });
 
-test("runner passes tool and system prompt append arguments", async () => {
+test("runner passes session name, tool, and system prompt append arguments", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-runner-test-"));
   const fakePi = await makeFakePi(dir);
   const { runDir, configPath } = await writeConfig(dir, {
@@ -268,6 +268,9 @@ test("runner passes tool and system prompt append arguments", async () => {
   assert.equal(result.code, 0, result.stderr);
 
   const events = await fs.readFile(path.join(runDir, "events.jsonl"), "utf8");
+  const start = events.trim().split("\n").map((line) => JSON.parse(line)).find((event) => event.type === "subagent_start");
+  const nameIndex = start.args.indexOf("--name");
+  assert.deepEqual(start.args.slice(nameIndex, nameIndex + 2), ["--name", "subagent: args"]);
   assert.match(events, /--no-tools/);
   assert.match(events, /--append-system-prompt/);
   assert.doesNotMatch(events, /"--system-prompt"/);

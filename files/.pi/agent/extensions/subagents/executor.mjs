@@ -264,7 +264,7 @@ function writeSubagentFiles(config, task, index) {
 
 function argsForSubagent(config, task, index) {
   const { promptPath, taskPath } = writeSubagentFiles(config, task, index);
-  const args = ["--mode", "json", "-p", "--no-extensions"];
+  const args = ["--mode", "json", "-p", "--no-extensions", "--name", `subagent: ${task.name}`];
   if (task.sessionFile) args.push("--session", task.sessionFile);
   if (task.model) args.push("--model", task.model);
   if (task.thinking) args.push("--thinking", task.thinking);

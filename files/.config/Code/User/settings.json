@@ -1,6 +1,6 @@
 {
   "window.title": "${rootPath}${separator}${appName}",
-  "terminal.integrated.automationProfile.osx": {},
+  "terminal.integrated.automationProfile.osx": null,
   "github.copilot.nextEditSuggestions.enabled": true,
   "claudeCode.preferredLocation": "panel",
   "git.confirmSync": false,
@@ -110,10 +110,14 @@
   "terminal.integrated.persistentSessionScrollback": 100000,
   "chat.disableAIFeatures": true,
   "terminal.integrated.commandsToSkipShell": [
-    "pi-code.newSession"
+    "pi-code.newSession",
+    "pi-clipboard-bridge.paste"
   ],
   "dev.containers.defaultFeatures": {
     "ghcr.io/jjlinares/devcontainer-features/pi-coding-agent:1.0.1": {}
   },
+  "dev.containers.defaultExtensions": [
+    "jjmsft.pi-code-tui"
+  ],
   "dev.containers.lockfile": false
 }
