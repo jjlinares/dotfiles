@@ -6,7 +6,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runSubagents } from "./executor.mjs";
+import {
+  MAX_TOOL_RESULT_BYTES,
+  MAX_TOOL_RESULT_CHILD_BYTES,
+  runSubagents,
+} from "./executor.mjs";
 import { writeAbortMarker } from "./_protocol.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -55,11 +59,17 @@ const sessionCwd = task.includes("session-cwd-different") ? "/session/project" :
 console.log(JSON.stringify({ type: "session", version: 3, id: "fake-session-id", timestamp: new Date().toISOString(), cwd: sessionCwd }));
 if (task.includes("exit-before-message")) process.exit(9);
 console.log(JSON.stringify({ type: "tool_execution_start", toolName: "read", args: { path: "README.md" } }));
+const normalOutput = (task.includes("transcript-events") ? "\\u001b[34m" : "") + "result for " + task.trim().replace(/\\s+/g, " ") + (task.includes("transcript-events") ? "\\u0003" : "");
+const output = task.includes("large-output")
+  ? "L".repeat(24 * 1024) + "LARGE-END"
+  : task.includes("medium-output")
+    ? "M".repeat(14 * 1024) + "MEDIUM-END"
+    : normalOutput;
 const message = {
   type: "message_end",
   message: {
     role: "assistant",
-    content: [{ type: "text", text: (task.includes("transcript-events") ? "\\u001b[34m" : "") + "result for " + task.trim().replace(/\\s+/g, " ") + (task.includes("transcript-events") ? "\\u0003" : "") }],
+    content: [{ type: "text", text: output }],
     stopReason: "stop",
     usage: { input: 3, output: 5, cacheRead: 0, cacheWrite: 0, cost: { total: 0.02 }, totalTokens: 8 }
   }
@@ -146,6 +156,60 @@ test("runner completes parallel subagents and writes aggregate result", async ()
   assert.equal((await fs.stat(status.subagents[0].outputFile)).mode & 0o777, 0o600);
   assert.equal((await fs.stat(status.subagents[0].transcriptFile)).mode & 0o777, 0o600);
   assert.equal((await fs.stat(path.join(runDir, "events.jsonl"))).mode & 0o777, 0o600);
+});
+
+test("runner caps each child in the tool result but preserves complete result files", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-runner-test-"));
+  const fakePi = await makeFakePi(dir);
+  const runDir = path.join(dir, "child-cap");
+  const { status, resultText } = await runSubagents({
+    runId: "child-cap",
+    runDir,
+    cwd: dir,
+    mode: "foreground",
+    notify: "none",
+    concurrency: 1,
+    piScript: fakePi,
+    subagents: [{ id: "child-cap-0", name: "large", task: "large-output", context: "fresh", cwd: dir }],
+  });
+
+  const returnedChildOutput = resultText.match(/L+/)?.[0] ?? "";
+  assert.ok(Buffer.byteLength(returnedChildOutput, "utf8") <= MAX_TOOL_RESULT_CHILD_BYTES);
+  assert.match(resultText, /Output truncated\. Full output:/);
+  assert.ok(resultText.includes(status.subagents[0].outputFile));
+  assert.doesNotMatch(resultText, /LARGE-END/);
+  assert.match(await fs.readFile(status.subagents[0].outputFile, "utf8"), /LARGE-END$/);
+  assert.match(await fs.readFile(path.join(runDir, "result.md"), "utf8"), /LARGE-END/);
+});
+
+test("runner caps the total tool result but preserves the complete aggregate", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-runner-test-"));
+  const fakePi = await makeFakePi(dir);
+  const runDir = path.join(dir, "total-cap");
+  const subagents = Array.from({ length: 4 }, (_, index) => ({
+    id: `total-cap-${index}`,
+    name: `medium-${index}`,
+    task: `medium-output ${index}`,
+    context: "fresh",
+    cwd: dir,
+  }));
+  const { resultText } = await runSubagents({
+    runId: "total-cap",
+    runDir,
+    cwd: dir,
+    mode: "foreground",
+    notify: "none",
+    concurrency: 4,
+    piScript: fakePi,
+    subagents,
+  });
+
+  assert.ok(Buffer.byteLength(resultText, "utf8") <= MAX_TOOL_RESULT_BYTES);
+  assert.match(resultText, /Subagent run output truncated\. Full result:/);
+  assert.ok(resultText.includes(path.join(runDir, "result.md")));
+  const aggregate = await fs.readFile(path.join(runDir, "result.md"), "utf8");
+  for (const child of subagents) assert.match(aggregate, new RegExp(`## ${child.name} — complete`));
+  assert.match(aggregate, /MEDIUM-END/);
 });
 
 test("runner builds resume commands from the persisted session cwd", async () => {

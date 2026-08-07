@@ -16,6 +16,8 @@ const KILL_GRACE_MS = 3000;
 const MAX_JSONL_BYTES = 50 * 1024 * 1024;
 const MAX_TRANSCRIPT_FIELD_CHARS = 64 * 1024;
 const MAX_TOOL_UPDATE_BYTES = 8 * 1024;
+export const MAX_TOOL_RESULT_CHILD_BYTES = 16 * 1024;
+export const MAX_TOOL_RESULT_BYTES = 48 * 1024;
 
 function now() {
   return Date.now();
@@ -641,16 +643,40 @@ function markQueuedAborted(status, config) {
   }
 }
 
+function truncateWithNotice(value, maxBytes, notice) {
+  if (Buffer.byteLength(value, "utf8") <= maxBytes) return value;
+  const requestedMarker = `\n\n${notice}`;
+  const marker = boundUtf8Text(requestedMarker, maxBytes);
+  const contentBudget = Math.max(0, maxBytes - Buffer.byteLength(marker, "utf8"));
+  return `${boundUtf8Text(value, contentBudget)}${marker}`;
+}
+
 function writeAggregate(config, status, resultPath) {
-  const sections = status.subagents.map((task) => {
+  const fullSections = [];
+  const toolSections = [];
+  for (const task of status.subagents) {
     const persistedOutput = fs.existsSync(task.outputFile) ? fs.readFileSync(task.outputFile, "utf8").trim() : "";
     const output = persistedOutput || task.error || task.reason || "(no output)";
     const resume = task.resumeCommand ? `> Resume: \`${task.resumeCommand}\`\n\n` : "";
-    return `## ${task.name} — ${task.state}\n\n${resume}${output}`;
-  });
-  const resultText = `# Subagent run ${config.runId}\n\n${sections.join("\n\n---\n\n")}\n`;
-  writeTextAtomic(resultPath, resultText);
-  return resultText;
+    const header = `## ${task.name} — ${task.state}\n\n${resume}`;
+    fullSections.push(`${header}${output}`);
+    const toolOutput = truncateWithNotice(
+      output,
+      MAX_TOOL_RESULT_CHILD_BYTES,
+      `[Output truncated. Full output: ${task.outputFile}]`,
+    );
+    toolSections.push(`${header}${toolOutput}`);
+  }
+
+  const fullResultText = `# Subagent run ${config.runId}\n\n${fullSections.join("\n\n---\n\n")}\n`;
+  writeTextAtomic(resultPath, fullResultText);
+
+  const toolResultText = `# Subagent run ${config.runId}\n\n${toolSections.join("\n\n---\n\n")}\n`;
+  return truncateWithNotice(
+    toolResultText,
+    MAX_TOOL_RESULT_BYTES,
+    `[Subagent run output truncated. Full result: ${resultPath}]`,
+  );
 }
 
 function markRunnerFailed(status, error) {

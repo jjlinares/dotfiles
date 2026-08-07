@@ -175,7 +175,7 @@ Default foreground behavior:
 subagent({ subagents: [{ task: "Review the diff" }] })
 ```
 
-The tool waits for all children, streams status updates, then returns the aggregate result to the parent. `/subagents` can be opened during this wait; foreground execution continues behind the overlay.
+The tool waits for all children, streams status updates, then returns a bounded aggregate result to the parent. Child output is capped at 16 KiB each and the complete tool result is capped at 48 KiB. Truncation notices link to the complete `output-*.md` or `result.md` file. `/subagents` can be opened during this wait; foreground execution continues behind the overlay.
 
 Background behavior:
 
@@ -247,7 +247,7 @@ Foreground and background runs share the same executor (`executor.mjs`). Foregro
 
 The dashboard requests cancellation through a private per-child control marker. This is best-effort, not an atomic guarantee: a child may settle before the owning executor observes the request. When observed in time, the executor handles it: queued children are not spawned; running children use the executor's normal process-group termination path. Cancellation is terminal `cancelled`, with `Cancelled by user` recorded as its reason rather than an execution error. A run is `failed` if any child actually fails; otherwise it is `cancelled` if any child is cancelled, and `complete` only when every child completes. Cancelled-only foreground results are not marked as tool errors. Repeated requests are idempotent. Configured dashboard cancel closes the overlay first; parent interrupt behavior remains separate.
 
-Every child gets a sanitized normalized transcript, even when `includeJsonl` is false. It records assistant/tool/warning/error activity and is capped at **1 MiB per child** with an explicit truncation marker. Optional raw Pi JSONL remains separately capped at 50 MB. Final `output-*.md` and aggregate `result.md` behavior is unchanged.
+Every child gets a sanitized normalized transcript, even when `includeJsonl` is false. It records assistant/tool/warning/error activity and is capped at **1 MiB per child** with an explicit truncation marker. Optional raw Pi JSONL remains separately capped at 50 MB. Final `output-*.md` and aggregate `result.md` files remain complete. Only the result returned to the parent model is bounded.
 
 Runs and status survive Pi reload/restart while their temporary run directories remain present. Running detached jobs are rediscovered; old completed/cancelled/failed jobs are not announced again. `/tmp` cleanup by the OS can remove this history.
 
