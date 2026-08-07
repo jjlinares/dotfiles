@@ -111,5 +111,9 @@
   "chat.disableAIFeatures": true,
   "terminal.integrated.commandsToSkipShell": [
     "pi-code.newSession"
-  ]
+  ],
+  "dev.containers.defaultFeatures": {
+    "ghcr.io/jjlinares/devcontainer-features/pi-coding-agent:1.0.1": {}
+  },
+  "dev.containers.lockfile": false
 }
