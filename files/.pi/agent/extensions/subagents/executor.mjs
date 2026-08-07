@@ -198,6 +198,7 @@ function createStatus(config) {
       id: task.id,
       index,
       name: task.name,
+      task: task.task,
       state: "queued",
       cwd: task.cwd ?? config.cwd,
       context: task.context,

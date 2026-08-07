@@ -58,6 +58,7 @@ export type RunStatus = {
 		id: string;
 		index: number;
 		name: string;
+		task?: string;
 		state: "queued" | "running" | "complete" | "cancelled" | "failed";
 		preview?: string;
 		outputFile?: string;

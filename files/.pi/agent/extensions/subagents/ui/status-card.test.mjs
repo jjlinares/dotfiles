@@ -18,6 +18,7 @@ function child(overrides = {}) {
     notify: "none",
     state: "complete",
     name: "workflow-explorer",
+    task: "Inspect transaction boundaries and verify external operations.\nReport concrete risks.",
     cwd: "/work",
     context: "fork",
     model: "gpt-5.6-terra",
@@ -74,17 +75,28 @@ test("wide status card exposes config and telemetry in aligned columns", () => {
   assert.match(output, /quality-explorer\s+gpt-5\.6-terra \/ high\s+00:39\s+5\s+27\s+87\.7k\s+\$0\.0094/);
 });
 
-test("status card never renders child tool activity, output, or artifacts", () => {
+test("compact status card never renders tasks, child activity, output, or artifacts", () => {
   const output = renderStatusCardLines(run(), theme, 120, 53_000).join("\n");
+  assert.doesNotMatch(output, /transaction boundaries|concrete risks/);
+  assert.doesNotMatch(output, /secret\.ts|do-not-render|private child output|output\.md/);
+  assert.doesNotMatch(output, /tool:|\bread\b|\bbash\b/);
+});
+
+test("expanded status card renders each task but no child tool activity", () => {
+  const output = renderStatusCardLines(run(), theme, 72, 53_000, true).join("\n");
+  assert.match(output, /TASK  Inspect transaction boundaries and verify external/);
+  assert.match(output, /Report concrete risks\./);
   assert.doesNotMatch(output, /secret\.ts|do-not-render|private child output|output\.md/);
   assert.doesNotMatch(output, /tool:|\bread\b|\bbash\b/);
 });
 
 test("status card stays within narrow, medium, and wide widths", () => {
   for (const width of [48, 60, 72, 90, 100, 120]) {
-    const lines = renderStatusCardLines(run(), theme, width, 53_000);
-    assert.ok(lines.length > 0);
-    for (const line of lines) assert.ok(Array.from(line).length <= width, `${width}: ${line}`);
+    for (const expanded of [false, true]) {
+      const lines = renderStatusCardLines(run(), theme, width, 53_000, expanded);
+      assert.ok(lines.length > 0);
+      for (const line of lines) assert.ok(Array.from(line).length <= width, `${width}: ${line}`);
+    }
   }
 });
 

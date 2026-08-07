@@ -127,6 +127,7 @@ test("runner completes parallel subagents and writes aggregate result", async ()
   assert.equal(status.subagents[0].usage.input, 3);
   assert.equal(status.subagents[1].usage.output, 5);
   assert.equal(status.subagents[0].thinking, "high");
+  assert.equal(status.subagents[0].task, "inspect one");
   assert.equal(status.subagents[0].sessionId, "fake-session-id");
   assert.equal(status.subagents[0].resumeCommand, `(cd -- '${dir}' && pi --session fake-session-id)`);
   assert.match(path.basename(status.subagents[0].outputFile), /^output-0-one\.md$/);

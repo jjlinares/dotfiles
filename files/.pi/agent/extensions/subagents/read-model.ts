@@ -28,6 +28,7 @@ export type ChildSnapshot = {
 	notify: NotifyMode;
 	state: ChildState;
 	name: string;
+	task?: string;
 	cwd: string;
 	context?: ContextMode;
 	model?: string;
@@ -151,6 +152,7 @@ export function projectRunStatus(status: RunStatus, runDir: string): ChildSnapsh
 			notify,
 			state: child.state,
 			name: child.name,
+			...(child.task ? { task: child.task } : {}),
 			cwd: child.cwd ?? status.cwd,
 			...(child.context ? { context: child.context } : {}),
 			...(child.model ? { model: child.model } : {}),

@@ -32,6 +32,7 @@ function status(runId, options = {}) {
       id: `${runId}-${index}`,
       index,
       name,
+      task: `task for ${name}`,
       state: options.childState ?? "queued",
       cwd: `/work/${runId}/${name}`,
       context: "fresh",
@@ -65,6 +66,7 @@ test("read model flattens statuses in stable run/index order and treats legacy m
   assert.equal(model.get("older-0").runStartedAt, 100);
   assert.equal(model.get("older-0").runUpdatedAt, 100);
   assert.equal(model.get("newer-1").cwd, "/work/newer/b");
+  assert.equal(model.get("newer-1").task, "task for b");
   assert.equal(model.get("newer-1").capabilities.canAbort, true);
 });
 

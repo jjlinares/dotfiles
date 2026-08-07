@@ -399,7 +399,7 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 			}
 			return new Container();
 		},
-		renderResult(result, _options, theme) {
+		renderResult(result, options, theme) {
 			const rendered = statusFromDetails(result.details);
 			if (rendered) {
 				const children = projectRunStatus(rendered.status, rendered.dir ?? path.join(RUN_ROOT, rendered.status.id));
@@ -409,7 +409,7 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 					...(rendered.status.completedAt !== undefined ? { completedAt: rendered.status.completedAt } : {}),
 					totalChildren: rendered.status.subagents.length,
 					children,
-				}, theme);
+				}, theme, Boolean(options?.expanded));
 			}
 			const text = result.content.find((item) => item.type === "text")?.text ?? "";
 			return new Text(theme.fg(result.isError ? "error" : "muted", text), 0, 0);
