@@ -4,8 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runSubagents } from "./executor.mjs";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { keyHint, SessionManager } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { Container, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import {
 	RUN_ROOT,
@@ -36,6 +36,7 @@ import {
 	waitForChildTargets,
 } from "./management.ts";
 import { openSubagentsDashboard } from "./ui/index.ts";
+import { SubagentStatusCard } from "./ui/status-card.ts";
 
 type PreparedRun = { id: string; dir: string; notify: NotifyMode; count: number; config: RunConfig; configPath: string };
 
@@ -136,167 +137,6 @@ function prepareRun(params: SubagentParams, ctx: ExtensionContext): PreparedRun 
 	const configPath = path.join(runDir, "config.json");
 	fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
 	return { id: runId, dir: runDir, notify: config.notify, count: config.subagents.length, config, configPath };
-}
-
-function compactPath(value: string | undefined): string {
-	if (!value) return "";
-	const home = process.env.HOME;
-	const shortened = home && value.startsWith(home) ? `~${value.slice(home.length)}` : value;
-	return shortened.length > 80 ? `…${shortened.slice(-79)}` : shortened;
-}
-
-function duration(ms: number): string {
-	const seconds = Math.max(0, Math.round(ms / 1000));
-	if (seconds < 60) return `${seconds}s`;
-	const minutes = Math.floor(seconds / 60);
-	const rest = seconds % 60;
-	return `${minutes}m${rest ? ` ${rest}s` : ""}`;
-}
-
-function compactNumber(value: number): string {
-	if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}m`;
-	if (value >= 1_000) return `${Math.round(value / 100) / 10}k`;
-	return String(value);
-}
-
-function subagentTokens(task: ChildSnapshot): number {
-	return task.usage?.totalTokens || ((task.usage?.input ?? 0) + (task.usage?.output ?? 0));
-}
-
-function subagentRuntime(task: ChildSnapshot): string {
-	if (!task.startedAt) return "";
-	return duration((task.completedAt ?? Date.now()) - task.startedAt);
-}
-
-function truncateText(value: string, max = Math.max(80, (process.stdout.columns || 120) - 12)): string {
-	return value.length > max ? `${value.slice(0, Math.max(0, max - 3))}...` : value;
-}
-
-const COMPACT_SUBAGENT_DETAIL_LINES = 3;
-const EXPANDED_SUBAGENT_DETAIL_LINES = 6;
-
-function subagentOutputLines(task: ChildSnapshot, limit: number): string[] {
-	const recent = (task.recentOutput ?? []).filter((line) => line.trim());
-	if (recent.length > 0) return recent.slice(-limit).map((line) => truncateText(line.trim(), 120));
-	if (task.preview && !task.preview.startsWith("tool:")) return [truncateText(task.preview.trim(), 120)];
-	return [];
-}
-
-function latestToolLine(task: ChildSnapshot): string | undefined {
-	if (task.currentTool) {
-		const args = task.currentToolArgs || (task.currentPath ? String(task.currentPath) : "");
-		return truncateText(`tool: ${task.currentTool}${args ? ` ${args}` : ""}`);
-	}
-	const tool = task.recentTools?.at(-1);
-	if (!tool) return undefined;
-	return truncateText(`tool: ${tool.tool}${tool.args ? ` ${tool.args}` : ""}`);
-}
-
-function fixedSubagentDetailLines(
-	task: ChildSnapshot,
-	theme: ExtensionContext["ui"]["theme"],
-	expanded: boolean,
-): string[] {
-	const limit = expanded ? EXPANDED_SUBAGENT_DETAIL_LINES : COMPACT_SUBAGENT_DETAIL_LINES;
-	const details: string[] = [];
-
-	if (task.state === "failed" && task.error) details.push(theme.fg("error", `     ${truncateText(task.error.split("\n", 1)[0], 120)}`));
-	else if (task.state === "cancelled" && task.reason) details.push(theme.fg("warning", `     ${truncateText(task.reason.split("\n", 1)[0], 120)}`));
-	else if (task.warning) details.push(theme.fg("warning", `     warning: ${truncateText(task.warning.split("\n", 1)[0], 110)}`));
-
-	const currentOrRecentTool = latestToolLine(task);
-	if (currentOrRecentTool) details.push(theme.fg("dim", `     ${currentOrRecentTool}`));
-	if (expanded) {
-		for (const tool of task.recentTools?.slice(-3, -1) ?? []) {
-			details.push(theme.fg("dim", `     ${truncateText(`tool: ${tool.tool}${tool.args ? ` ${tool.args}` : ""}`)}`));
-		}
-	}
-
-	for (const line of subagentOutputLines(task, limit)) details.push(theme.fg("dim", `     ${line}`));
-	if (expanded) {
-		if (task.outputFile) details.push(theme.fg("dim", `     output: ${compactPath(task.outputFile)}`));
-		if (task.stdoutFile) details.push(theme.fg("dim", `     jsonl: ${compactPath(task.stdoutFile)}`));
-	}
-
-	const fixed = details.slice(0, limit);
-	while (fixed.length < limit) fixed.push("");
-	return fixed;
-}
-
-function subagentGlyph(state: string, theme: ExtensionContext["ui"]["theme"]): string {
-	if (state === "complete") return theme.fg("success", "✓");
-	if (state === "cancelled") return theme.fg("warning", "−");
-	if (state === "failed") return theme.fg("error", "✗");
-	if (state === "running") return theme.fg("accent", "◐");
-	return theme.fg("dim", "◦");
-}
-
-function summarizeUsage(children: readonly ChildSnapshot[]): { tools: number; turns: number; tokens: number; cost: number } {
-	let tools = 0;
-	let turns = 0;
-	let tokens = 0;
-	let cost = 0;
-	for (const task of children) {
-		tools += task.toolCount ?? 0;
-		turns += task.usage?.turns ?? 0;
-		tokens += subagentTokens(task);
-		cost += task.usage?.cost ?? 0;
-	}
-	return { tools, turns, tokens, cost };
-}
-
-function renderStatusCard(
-	status: RunStatus,
-	runDir: string | undefined,
-	theme: ExtensionContext["ui"]["theme"],
-	expanded: boolean,
-	finalText?: string,
-): Text {
-	const children = projectRunStatus(status, runDir ?? path.join(RUN_ROOT, status.id));
-	const done = children.filter((task) => task.state === "complete" || task.state === "cancelled" || task.state === "failed").length;
-	const cancelled = children.filter((task) => task.state === "cancelled").length;
-	const failed = children.filter((task) => task.state === "failed").length;
-	const running = children.filter((task) => task.state === "running").length;
-	const queued = children.filter((task) => task.state === "queued").length;
-	const elapsed = duration((status.completedAt ?? Date.now()) - status.startedAt);
-	const usage = summarizeUsage(children);
-	const stateGlyph = status.state === "complete" ? theme.fg("success", "✓") : status.state === "cancelled" ? theme.fg("warning", "−") : status.state === "failed" ? theme.fg("error", "✗") : theme.fg("accent", "◐");
-	const stats = [
-		`${done}/${status.subagents.length}`,
-		running ? `${running} running` : "",
-		queued ? `${queued} queued` : "",
-		cancelled ? `${cancelled} cancelled` : "",
-		failed ? `${failed} failed` : "",
-		usage.tools ? `${usage.tools} tools` : "",
-		usage.turns ? `${usage.turns} turns` : "",
-		usage.tokens ? `${compactNumber(usage.tokens)} tok` : "",
-		usage.cost ? `$${usage.cost.toFixed(4)}` : "",
-		elapsed,
-	].filter(Boolean).join(" · ");
-	const lines = [`${stateGlyph} ${theme.fg("toolTitle", theme.bold("subagents"))} ${theme.fg("dim", `· ${status.state} · ${stats}`)}`];
-	if (!expanded && status.state === "running") lines.push(theme.fg("accent", `  ${keyHint("app.tools.expand", "for details")}`));
-
-	for (const task of children) {
-		const label = `${task.index + 1}. ${task.name}`;
-		const tokenCount = subagentTokens(task);
-		const subagentStats = [
-			task.state,
-			expanded && task.context ? `context ${task.context}` : "",
-			expanded && task.model ? `model ${task.model}` : "",
-			expanded && task.thinking ? `thinking ${task.thinking}` : "",
-			task.toolCount ? `${task.toolCount} tools` : "",
-			task.usage?.turns ? `${task.usage.turns} turns` : "",
-			tokenCount ? `${compactNumber(tokenCount)} tok` : "",
-			task.usage?.cost ? `$${task.usage.cost.toFixed(4)}` : "",
-			subagentRuntime(task),
-		].filter(Boolean).join(" · ");
-		lines.push(`  ${subagentGlyph(task.state, theme)} ${theme.bold(label)} ${theme.fg("dim", `· ${subagentStats}`)}`);
-
-		lines.push(...fixedSubagentDetailLines(task, theme, expanded));
-	}
-	if (expanded && runDir) lines.push("", theme.fg("dim", `Artifacts: ${compactPath(runDir)}`));
-	if (expanded && finalText && status.state !== "running") lines.push("", finalText.trim());
-	return new Text(lines.join("\n"), 0, 0);
 }
 
 function statusFromDetails(details: unknown): { status: RunStatus; dir?: string } | undefined {
@@ -557,15 +397,19 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 				const targets = params.ids?.join(", ") ?? params.id ?? "";
 				return new Text(`${theme.fg("toolTitle", theme.bold("subagent "))}${params.action} ${targets}`, 0, 0);
 			}
-			const count = params.subagents?.length ?? 0;
-			const mode = params.async === true ? "async" : "foreground";
-			return new Text(`${theme.fg("toolTitle", theme.bold("subagent "))}${mode} ${theme.fg("accent", String(count))} subagent${count === 1 ? "" : "s"}`, 0, 0);
+			return new Container();
 		},
-		renderResult(result, options, theme) {
+		renderResult(result, _options, theme) {
 			const rendered = statusFromDetails(result.details);
 			if (rendered) {
-				const finalText = result.content.find((item) => item.type === "text")?.text;
-				return renderStatusCard(rendered.status, rendered.dir, theme, Boolean(options?.expanded), finalText);
+				const children = projectRunStatus(rendered.status, rendered.dir ?? path.join(RUN_ROOT, rendered.status.id));
+				return new SubagentStatusCard({
+					state: rendered.status.state,
+					startedAt: rendered.status.startedAt,
+					...(rendered.status.completedAt !== undefined ? { completedAt: rendered.status.completedAt } : {}),
+					totalChildren: rendered.status.subagents.length,
+					children,
+				}, theme);
 			}
 			const text = result.content.find((item) => item.type === "text")?.text ?? "";
 			return new Text(theme.fg(result.isError ? "error" : "muted", text), 0, 0);
