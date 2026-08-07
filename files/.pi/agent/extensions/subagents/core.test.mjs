@@ -192,6 +192,13 @@ test("findRunDir supports exact and prefix matches", async () => {
   assert.equal(findRunDir("missing", root), undefined);
 });
 
+test("findRunDir rejects ambiguous prefixes", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-core-test-"));
+  await fs.mkdir(path.join(root, "abc111"));
+  await fs.mkdir(path.join(root, "abc222"));
+  assert.throws(() => findRunDir("abc", root), /Ambiguous subagent run id prefix/);
+});
+
 test("findRunDir and status listing isolate parent sessions", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-core-test-"));
   for (const [id, parentSessionId] of [["owned-run", "session-a"], ["foreign-run", "session-b"], ["legacy-run", undefined]]) {
@@ -252,7 +259,7 @@ test("formatStatus lists runs and includes subagent details", async () => {
 
   assert.match(formatStatus(undefined, root, 3000), /✗ run1 failed 1\/1 2s/);
   const detail = formatStatus(runDir, root, 3000);
-  assert.match(detail, /## review — failed/);
+  assert.match(detail, /## review \(run1-0\) — failed/);
   assert.match(detail, /bad/);
   assert.match(detail, /cd -- '\/work\/child' && pi --session session-123/);
   assert.match(detail, /stderr:/);

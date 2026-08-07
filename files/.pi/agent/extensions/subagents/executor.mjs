@@ -11,13 +11,13 @@ import {
   statusFilePath,
   transcriptFilePath,
 } from "./_protocol.mjs";
+import { MAX_TOOL_RESULT_BYTES, MAX_TOOL_RESULT_CHILD_BYTES } from "./limits.mjs";
+export { MAX_TOOL_RESULT_BYTES, MAX_TOOL_RESULT_CHILD_BYTES } from "./limits.mjs";
 
 const KILL_GRACE_MS = 3000;
 const MAX_JSONL_BYTES = 50 * 1024 * 1024;
 const MAX_TRANSCRIPT_FIELD_CHARS = 64 * 1024;
 const MAX_TOOL_UPDATE_BYTES = 8 * 1024;
-export const MAX_TOOL_RESULT_CHILD_BYTES = 16 * 1024;
-export const MAX_TOOL_RESULT_BYTES = 48 * 1024;
 
 function now() {
   return Date.now();

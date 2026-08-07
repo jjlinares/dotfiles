@@ -93,12 +93,17 @@ subagent({
 })
 ```
 
-Check status:
+Inspect and control background work:
 
 ```ts
 subagent({ action: "status" })
 subagent({ action: "status", id: "abc123" })
+subagent({ action: "check", id: "abc123-0" })
+subagent({ action: "wait", ids: ["abc123-0", "abc123-1"] })
+subagent({ action: "cancel", ids: ["abc123-1"] })
 ```
+
+`wait` and `cancel` also accept a run id or unique run-id prefix, which expands to all children in that run. Use `id` or `ids`, never both.
 
 ## Parameters
 
@@ -118,6 +123,9 @@ Top-level:
 | `includeJsonl` | Write raw child JSONL files, capped at 50 MB per child. Default `false`. |
 | `async` | `false` default. Set `true` to run in background and return immediately. |
 | `notify` | Background completion behavior: `tui` default, `followUp`, or `none`. Ignored for foreground runs. |
+| `action` | `status`, `check`, `wait`, or `cancel` for existing session-owned work. Omit to launch. |
+| `id` | One run/child selector. `status` accepts only a run id/prefix. |
+| `ids` | Run ids/prefixes or child ids for `wait` and `cancel`; run selectors expand to all children. |
 
 Per-subagent overrides inside `subagents[]`:
 
@@ -165,7 +173,10 @@ Actions:
 
 | Action | Meaning |
 |---|---|
-| `status` | List recent runs, or show one run by `id`/prefix. |
+| `status` | List recent runs, or show one run by `id`/prefix. Detailed status includes each child id. |
+| `check` | Inspect one child without blocking. Returns state, activity, and up to 2 KiB/20 lines of output. |
+| `wait` | Wait for selected children to settle, then return bounded final output. Tool interruption leaves children running. |
+| `cancel` | Request best-effort cancellation for selected queued/running children. Returns without waiting for settlement. |
 
 ## Foreground vs background
 
@@ -245,7 +256,7 @@ subagent({
 
 Foreground and background runs share the same executor (`executor.mjs`). Foreground calls it in-process so status updates can stream back to the parent tool call. Background launches `runner.mjs`, which is only a thin detached wrapper around the same executor.
 
-The dashboard requests cancellation through a private per-child control marker. This is best-effort, not an atomic guarantee: a child may settle before the owning executor observes the request. When observed in time, the executor handles it: queued children are not spawned; running children use the executor's normal process-group termination path. Cancellation is terminal `cancelled`, with `Cancelled by user` recorded as its reason rather than an execution error. A run is `failed` if any child actually fails; otherwise it is `cancelled` if any child is cancelled, and `complete` only when every child completes. Cancelled-only foreground results are not marked as tool errors. Repeated requests are idempotent. Configured dashboard cancel closes the overlay first; parent interrupt behavior remains separate.
+The dashboard and `cancel` action request cancellation through a private per-child control marker. This is best-effort, not an atomic guarantee: a child may settle before the owning executor observes the request. When observed in time, the executor handles it: queued children are not spawned; running children use the executor's normal process-group termination path. Cancellation is terminal `cancelled`, with `Cancelled by user` recorded as its reason rather than an execution error. A run is `failed` if any child actually fails; otherwise it is `cancelled` if any child is cancelled, and `complete` only when every child completes. Cancelled-only foreground results are not marked as tool errors. Repeated requests are idempotent. Configured dashboard cancel closes the overlay first; parent interrupt behavior remains separate.
 
 Every child gets a sanitized normalized transcript, even when `includeJsonl` is false. It records assistant/tool/warning/error activity and is capped at **1 MiB per child** with an explicit truncation marker. Optional raw Pi JSONL remains separately capped at 50 MB. Final `output-*.md` and aggregate `result.md` files remain complete. Only the result returned to the parent model is bounded.
 

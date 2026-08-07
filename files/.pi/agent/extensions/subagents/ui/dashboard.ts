@@ -21,7 +21,7 @@ import {
 	type DetailScrollState,
 	type TranscriptEvent,
 } from "./model.ts";
-import { readContainedFileHead, readContainedFileTail } from "./files.ts";
+import { readContainedFileHead, readContainedFileTail } from "../artifact-files.ts";
 
 const MAX_TRANSCRIPT_READ_BYTES = 1024 * 1024;
 const MAX_FINAL_OUTPUT_READ_BYTES = 64 * 1024;

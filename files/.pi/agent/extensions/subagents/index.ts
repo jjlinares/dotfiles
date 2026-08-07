@@ -26,6 +26,15 @@ import {
 } from "./core.ts";
 import { projectRunStatus, SubagentReadModel, type ChildSnapshot } from "./read-model.ts";
 import { CompletionNotificationState, type NotificationRecord } from "./notification-state.ts";
+import {
+	formatCancellationResults,
+	formatChildCheck,
+	formatWaitResults,
+	requestChildCancellations,
+	resolveChildTargets,
+	selectorsForAction,
+	waitForChildTargets,
+} from "./management.ts";
 import { openSubagentsDashboard } from "./ui/index.ts";
 
 type PreparedRun = { id: string; dir: string; notify: NotifyMode; count: number; config: RunConfig; configPath: string };
@@ -57,8 +66,18 @@ const SubagentSchema = Type.Object({
 }, { additionalProperties: false });
 
 const SubagentParamsSchema = Type.Object({
-	action: Type.Optional(Type.String({ enum: ["status"], description: "Use status to inspect runs." })),
-	id: Type.Optional(Type.String({ description: "Run id or prefix for status." })),
+	action: Type.Optional(Type.String({
+		enum: ["status", "check", "wait", "cancel"],
+		description: "Manage existing session-owned subagent runs or launch a new run when omitted.",
+	})),
+	id: Type.Optional(Type.String({
+		description: "Run id/prefix for status, or one run/child selector for check, wait, or cancel.",
+	})),
+	ids: Type.Optional(Type.Array(Type.String(), {
+		minItems: 1,
+		maxItems: 64,
+		description: "Run ids/prefixes or child ids for wait/cancel. A run selector expands to all children in that run.",
+	})),
 
 	appendSystemPrompt: Type.Optional(Type.String({ description: "Optional default role/config prompt appended to Pi's core system prompt; used by subagents that omit appendSystemPrompt. No prompt override is passed when omitted." })),
 	subagents: Type.Optional(Type.Array(SubagentSchema, { minItems: 1, description: "One or more child subagents to run." })),
@@ -287,7 +306,13 @@ function statusFromDetails(details: unknown): { status: RunStatus; dir?: string 
 	return undefined;
 }
 
-function launchAsyncRun(params: SubagentParams, ctx: ExtensionContext): { id: string; dir: string; notify: NotifyMode; count: number } {
+function launchAsyncRun(params: SubagentParams, ctx: ExtensionContext): {
+	id: string;
+	dir: string;
+	notify: NotifyMode;
+	count: number;
+	children: Array<{ id: string; name: string }>;
+} {
 	const run = prepareRun(params, ctx);
 	const child = spawn(process.execPath, [RUNNER_PATH, run.configPath], {
 		cwd: run.config.cwd,
@@ -296,7 +321,13 @@ function launchAsyncRun(params: SubagentParams, ctx: ExtensionContext): { id: st
 		env: { ...process.env, PI_SUBAGENTS_PI_SCRIPT: process.argv[1] },
 	});
 	child.unref();
-	return { id: run.id, dir: run.dir, notify: run.notify, count: run.count };
+	return {
+		id: run.id,
+		dir: run.dir,
+		notify: run.notify,
+		count: run.count,
+		children: run.config.subagents.map((subagent) => ({ id: subagent.id, name: subagent.name })),
+	};
 }
 
 async function runForeground(
@@ -430,6 +461,7 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 		label: "Subagent",
 		description: [
 			"Launch foreground or async/background child Pi sessions for orchestration fanout.",
+			"Use action status/check/wait/cancel to inspect or control existing session-owned runs and children.",
 			"Pass subagents[] plus optional appendSystemPrompt/model/thinking/tools/cwd/context defaults.",
 			"The extension adds no default child role or safety prompt; the orchestrator must define instructions and tool access explicitly.",
 			"Default is foreground/blocking; set async:true for background execution.",
@@ -438,29 +470,74 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 		parameters: SubagentParamsSchema,
 		async execute(_id, rawParams, signal, onUpdate, ctx) {
 			const params = rawParams as SubagentParams;
-			if (params.action === "status") {
-				const parentSessionId = ctx.sessionManager.getSessionId();
-				const runDir = params.id ? findRunDir(params.id, RUN_ROOT, parentSessionId) : undefined;
-				const candidateStatus = runDir ? readJson<RunStatus>(statusPath(runDir)) : undefined;
-				const status = candidateStatus?.parentSessionId === parentSessionId ? candidateStatus : undefined;
-				return {
-					content: [{
-						type: "text",
-						text: params.id && !runDir
-							? `No subagent run found for '${params.id}' in this session.`
-							: formatStatus(runDir, RUN_ROOT, Date.now(), parentSessionId),
-					}],
-					details: status ? { status, dir: runDir } : {},
-				};
-			}
 			try {
-				if (params.async === true) {
-					const run = launchAsyncRun(params, ctx);
-					notifications.trackLaunch(run.id, run.dir, run.notify);
+				if (!params.action && (params.id || params.ids?.length)) {
+					throw new Error("id and ids require action status, check, wait, or cancel.");
+				}
+				const selectors = params.action ? selectorsForAction(params.action, params.id, params.ids) : [];
+				if (params.action === "status") {
+					const parentSessionId = ctx.sessionManager.getSessionId();
+					const runId = selectors[0];
+					const runDir = runId ? findRunDir(runId, RUN_ROOT, parentSessionId) : undefined;
+					const candidateStatus = runDir ? readJson<RunStatus>(statusPath(runDir)) : undefined;
+					const status = candidateStatus?.parentSessionId === parentSessionId ? candidateStatus : undefined;
 					return {
 						content: [{
 							type: "text",
-							text: `Started subagent run ${run.id} (${run.count} subagent${run.count === 1 ? "" : "s"}).\nStatus: subagent({ action: "status", id: "${run.id}" })\nDir: ${run.dir}`,
+							text: runId && !runDir
+								? `No subagent run found for '${runId}' in this session.`
+								: formatStatus(runDir, RUN_ROOT, Date.now(), parentSessionId),
+						}],
+						details: status ? { status, dir: runDir } : {},
+					};
+				}
+
+				if (params.action === "check" || params.action === "wait" || params.action === "cancel") {
+					if (!readModel) throw new Error("Subagent management is not available for this session.");
+					const targets = resolveChildTargets(readModel.list(), selectors);
+
+					if (params.action === "check") {
+						if (targets.length !== 1) {
+							throw new Error(`Check requires one child id; the selector matched: ${targets.map((target) => target.id).join(", ")}.`);
+						}
+						const target = targets[0];
+						return {
+							content: [{ type: "text", text: formatChildCheck(target) }],
+							details: { action: "check", child: { id: target.id, runId: target.parentRunId, state: target.state } },
+						};
+					}
+
+					if (params.action === "wait") {
+						const settled = await waitForChildTargets(readModel, targets, signal, (pending) => {
+							onUpdate?.({
+								content: [{ type: "text", text: `Waiting for ${pending.map((target) => target.id).join(", ")}...` }],
+								details: { action: "wait", pending: pending.map((target) => target.id) },
+							});
+						});
+						return {
+							content: [{ type: "text", text: formatWaitResults(settled) }],
+							details: { action: "wait", children: settled.map((target) => ({ id: target.id, runId: target.parentRunId, state: target.state })) },
+						};
+					}
+
+					const results = requestChildCancellations(readModel, targets);
+					return {
+						content: [{ type: "text", text: formatCancellationResults(results) }],
+						details: {
+							action: "cancel",
+							children: results.map(({ snapshot, requested }) => ({ id: snapshot.id, runId: snapshot.parentRunId, state: snapshot.state, requested })),
+						},
+					};
+				}
+
+				if (params.async === true) {
+					const run = launchAsyncRun(params, ctx);
+					notifications.trackLaunch(run.id, run.dir, run.notify);
+					const children = run.children.map((child) => `- ${child.id} "${child.name}"`).join("\n");
+					return {
+						content: [{
+							type: "text",
+							text: `Started subagent run ${run.id} (${run.count} subagent${run.count === 1 ? "" : "s"}).\nChildren:\n${children}\nStatus: subagent({ action: "status", id: "${run.id}" })\nDir: ${run.dir}`,
 						}],
 						details: run,
 					};
@@ -475,10 +552,11 @@ export default function registerSubagents(pi: ExtensionAPI): void {
 			}
 		},
 		renderCall(args, theme) {
-			if ((args as SubagentParams).action === "status") {
-				return new Text(`${theme.fg("toolTitle", theme.bold("subagent "))}status ${(args as SubagentParams).id ?? ""}`, 0, 0);
-			}
 			const params = args as SubagentParams;
+			if (params.action) {
+				const targets = params.ids?.join(", ") ?? params.id ?? "";
+				return new Text(`${theme.fg("toolTitle", theme.bold("subagent "))}${params.action} ${targets}`, 0, 0);
+			}
 			const count = params.subagents?.length ?? 0;
 			const mode = params.async === true ? "async" : "foreground";
 			return new Text(`${theme.fg("toolTitle", theme.bold("subagent "))}${mode} ${theme.fg("accent", String(count))} subagent${count === 1 ? "" : "s"}`, 0, 0);

@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readContainedFileHead, readContainedFileTail } from "./files.ts";
+import { readContainedFileHead, readContainedFileTail } from "../artifact-files.ts";
 
 test("dashboard artifact reads allow bounded regular files inside the canonical run directory", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "subagents-ui-files-test-"));

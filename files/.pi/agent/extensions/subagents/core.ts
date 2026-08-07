@@ -25,8 +25,9 @@ export type SubagentInput = {
 type SubagentProfile = Partial<Omit<SubagentInput, "task" | "profile">> & { description?: string };
 
 export type SubagentParams = {
-	action?: "status";
+	action?: "status" | "check" | "wait" | "cancel";
 	id?: string;
+	ids?: string[];
 	appendSystemPrompt?: string;
 	subagents?: SubagentInput[];
 	context?: ContextMode;
@@ -192,7 +193,13 @@ function runBelongsToSession(dir: string, parentSessionId: string | undefined): 
 export function findRunDir(id?: string, root = RUN_ROOT, parentSessionId?: string): string | undefined {
 	if (!id) return undefined;
 	const dirs = listRunDirs(root).filter((dir) => runBelongsToSession(dir, parentSessionId));
-	return dirs.find((dir) => path.basename(dir) === id) ?? dirs.find((dir) => path.basename(dir).startsWith(id));
+	const exact = dirs.find((dir) => path.basename(dir) === id);
+	if (exact) return exact;
+	const matches = dirs.filter((dir) => path.basename(dir).startsWith(id));
+	if (matches.length > 1) {
+		throw new Error(`Ambiguous subagent run id prefix "${id}": ${matches.map((dir) => path.basename(dir)).join(", ")}.`);
+	}
+	return matches[0];
 }
 
 export function resolveSubagents(params: SubagentParams): SubagentInput[] {
@@ -351,7 +358,7 @@ export function formatStatus(runDir?: string, root = RUN_ROOT, now = Date.now(),
 	}
 	const lines = [formatRunLine(status, now), `dir: ${runDir}`];
 	for (const task of status.subagents) {
-		lines.push(`\n## ${task.name} — ${task.state}`);
+		lines.push(`\n## ${task.name} (${task.id}) — ${task.state}`);
 		if (task.preview) lines.push(task.preview);
 		if (task.resumeCommand) lines.push(`resume: ${task.resumeCommand}`);
 		if (task.outputFile) lines.push(`output: ${task.outputFile}`);
