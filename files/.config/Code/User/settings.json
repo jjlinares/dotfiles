@@ -49,14 +49,15 @@
     "sound": "on"
   },
   "json.schemaDownload.trustedDomains": {
-    "https://schemastore.azurewebsites.net/": true,
-    "https://raw.githubusercontent.com/microsoft/vscode/": true,
-    "https://raw.githubusercontent.com/devcontainers/spec/": true,
-    "https://www.schemastore.org/": true,
-    "https://json.schemastore.org/": true,
-    "https://json-schema.org/": true,
+    "https://biomejs.dev": true,
     "https://developer.microsoft.com/json-schemas/": true,
-    "https://biomejs.dev": true
+    "https://json-schema.org/": true,
+    "https://json.schemastore.org/": true,
+    "https://raw.githubusercontent.com/devcontainers/spec/": true,
+    "https://raw.githubusercontent.com/microsoft/vscode/": true,
+    "https://schemastore.azurewebsites.net/": true,
+    "https://ui.shadcn.com/schema.json": true,
+    "https://www.schemastore.org/": true
   },
   "chat.tools.urls.autoApprove": {
     "https://argo-cd.readthedocs.io": true,
@@ -117,5 +118,6 @@
   "dev.containers.defaultExtensions": [
     "jjmsft.pi-code-tui"
   ],
-  "dev.containers.lockfile": false
+  "dev.containers.lockfile": false,
+  "scm.defaultViewMode": "tree"
 }
