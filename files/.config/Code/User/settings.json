@@ -77,8 +77,6 @@
   "[json]": {
     "editor.defaultFormatter": "vscode.json-language-features"
   },
-  "gitlens.ai.model": "vscode",
-  "gitlens.ai.vscode.model": "copilot:gpt-4.1",
   "workbench.editor.useModal": "some",
   "workbench.colorTheme": "Dark Modern",
   "workbench.colorCustomizations": {
@@ -111,7 +109,7 @@
   "chat.disableAIFeatures": true,
   "terminal.integrated.commandsToSkipShell": [
     "pi-code.newSession",
-    "pi-clipboard-bridge.paste"
+    "remote-image-paste.paste"
   ],
   "dev.containers.defaultFeatures": {
     "ghcr.io/jjlinares/devcontainer-features/pi-coding-agent:1.0.1": {}
