@@ -22,6 +22,3 @@ tpi() {
     local name="$1"
     tmux new-session -A -s "$name" "pi --session-id $(printf '%q' "$name")"
 }
-
-# Machine-local variables and secrets; intentionally unmanaged.
-[ -f "$HOME/.config/shell/env.local" ] && . "$HOME/.config/shell/env.local"

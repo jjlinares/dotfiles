@@ -1,5 +1,8 @@
 # Environment shared by login and interactive Bash/Zsh shells.
 
+# Machine-local variables and secrets; intentionally unmanaged.
+[ -f "$HOME/.config/shell/env.local" ] && . "$HOME/.config/shell/env.local"
+
 path_prepend() {
     [ -d "$1" ] || return 0
     case ":${PATH:-}:" in
