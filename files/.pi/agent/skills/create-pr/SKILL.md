@@ -1,76 +1,30 @@
 ---
 name: create-pr
-description: This skill should be used when the user asks to "create a PR", "open a pull request", "prepare PR description", "write a reviewer guide", "organize code review", or needs a structured PR package for a completed feature branch.
+description: Create a concise pull request. User when you need to file, open, or create a PR.
 ---
-# PR Creation Skill
 
-Prepare a pull request package that helps reviewers validate changes quickly and thoroughly.
+# Create PR
 
-## Input
+Write a concise, human-readable title that explains why the change matters.
 
-Collect:
-1. Branch scope or feature name
-2. Target base branch
-3. Any special reviewer concerns (performance, AI behavior, migrations, UX)
+- Conventional commit titles, plain language: `fix(web): new threads no longer spike CPU`.
+- Body: the problem in a sentence or two, then how you fixed it. End with the model and harness that did the work.
+- Rebase onto latest main before opening. Stale branches conflict and burn a review round.
+- UI changes need before/after images. Motion or timing needs a short video.
+- One concern per PR. If the description says "also", split it into stacked PRs.
 
-If using the standard feature-development workflow, treat `.agents/features/<feature-name>/` as canonical context and read:
-- `.agents/features/<feature-name>/prd.md`
-- `.agents/features/<feature-name>/learnings.md`
+Examples:
 
-## Output Contract
+BAD
+> ❌ perf(server): negotiate permessage-deflate on the websocket
 
-Produce a PR package with these sections in this order:
-1. Problem Statement
-2. Outcome Summary
-3. Change Areas
-4. Non-goals / Deferred Scope
-5. Review Order
-6. How to Test
-7. Evidence (optional)
-8. Risk Hotspots
+GOOD
+> ✅ perf(server): cut websocket frame size by 70%+ with gzipping
 
-Keep each section concise and concrete.
+Open the description with a simple explanation of the problem based on the user's original prompt, then briefly explain the solution. Do not lead with an implementation inventory.
 
-Formatting requirements:
-- Use section titles exactly as listed above.
-- Prefer numbered lists for steps/checks.
-- Under "Change Areas", group by domain and include exact file paths.
-- Under "How to Test", use explicit subsections:
-  - `### Command Checks`
-  - `### Interactive Validation`
-- Under "Evidence", use explicit subsections and omit empty ones:
-  - `### In-Session Evidence`
-  - `### PR Attachments`
-  - `### External References` (for linked issues/docs, if relevant)
-- Omit the entire "Evidence" section when no evidence exists for any subsection.
-- Under "Risk Hotspots", include risk + concrete mitigation for each item.
+BAD
+> ❌ Removed implicit workspace carry-over from every "new thread" entry point (cmd+n / cmd+shift+o, sidebar v1/v2 buttons, command palette). New threads inherit only the project from context; branch, worktree, and env mode always come from the configured defaults. Deleted buildContextualThreadOptions, startNewThreadInProjectFromContext, and the v1 sidebar's seed-context machinery.
 
-## Process
-
-1. If `.agents/features/<feature-name>/` exists, read `prd.md` and `learnings.md` first and align PR scope with them.
-2. Summarize branch intent in 2-4 lines.
-3. Group file changes into clear review domains.
-4. Generate section content using repository terms and real paths.
-5. Add explicit verification details in "How to Test":
-- Add command checks with pass/fail status under `### Command Checks`.
-- Add interactive/manual validation steps under `### Interactive Validation` when feasible.
-- If interactive validation is not feasible, state that clearly in `### Interactive Validation`.
-6. Highlight known deferred items and rollout risks.
-7. Add "Evidence" only when there is actual evidence to report; omit empty subsections.
-8. Add a final clarification checkpoint:
-- Ask: `Is any section unclear or incomplete before you publish the PR?`
-- If user points to a section, revise only that section and re-run the checkpoint.
-
-## Quality Rules
-
-- Prefer facts over narrative.
-- Use exact file paths when citing implementation areas.
-- Do not claim tests ran unless run in this session.
-- Keep reviewer workload low: order from architectural risk to cosmetic changes.
-- If migrations or manual deployment steps exist, call them out explicitly.
-- Keep hierarchy explicit: use markdown subsections for grouped content in "How to Test" and "Evidence".
-- Omit empty sections/subsections; do not include placeholders like "none" unless user asks for explicit empty markers.
-
-## Additional Resources
-
-- `references/example.md` — canonical PR output example and formatting style.
+GOOD
+> ✅ My "new worktree" default was ignored when starting new threads on existing worktrees. Super unintuitive. Now your preferences always apply.
