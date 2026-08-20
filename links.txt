@@ -21,7 +21,3 @@
 .local/bin/sunshine-kscreen-mode
 .local/share/qwen3-asr/server.py
 .local/share/qwen3-asr/run-server
-.pi/agent/AGENTS.md
-.pi/agent/agents
-.pi/agent/skills
-.pi/agent/extensions

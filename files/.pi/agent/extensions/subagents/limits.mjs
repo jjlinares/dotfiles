@@ -1,2 +1,0 @@
-export const MAX_TOOL_RESULT_CHILD_BYTES = 16 * 1024;
-export const MAX_TOOL_RESULT_BYTES = 48 * 1024;

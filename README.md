@@ -13,9 +13,9 @@ The installer runs, in order:
 
 1. generic apt package installation
 2. Kubernetes repository and `kubectl` installation
-3. user tool installation (Oh My Zsh, NVM, Node, Pi, Bun, pnpm)
+3. user tool installation (Oh My Zsh, NVM, Node, Bun, pnpm)
 4. symlink creation
-5. Pi extension dependency installation and Herdr plugin registration
+5. Herdr plugin registration
 
 Existing destinations are moved to timestamped directories under
 `~/.local/state/dotfiles/backups/` before linking.
@@ -26,7 +26,7 @@ Existing destinations are moved to timestamped directories under
 ./install.sh           # full setup
 ./install.sh packages  # apt, Kubernetes, and user tools
 ./install.sh links     # create or repair symlinks
-./install.sh post      # Pi dependencies and Herdr registration
+./install.sh post      # Herdr registration
 ```
 
 ## Daily use
@@ -72,8 +72,9 @@ under the unmanaged portions of `~/.config/sunshine/`.
 The helper discovers a connected display instead of relying on unstable KDE
 connector names such as `DP-3` or `DP-4`.
 
-## Pi ownership
+## Pi
 
-The repository links only stable Pi resources: instructions, agents, skills,
-and the extensions directory. Runtime state remains local, including credentials,
-settings, trust data, sessions, history, binaries, and Pi's npm directory.
+Pi runtime and configuration are managed by
+[`jjlinares/pi`](https://github.com/jjlinares/pi). Run `~/projects/pi/install.sh`
+to install or repair the host setup. Credentials and mutable state remain under
+`~/.pi/agent`.

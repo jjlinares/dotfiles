@@ -113,7 +113,7 @@
     "remote-image-paste.paste"
   ],
   "dev.containers.defaultFeatures": {
-    "ghcr.io/jjlinares/devcontainer-features/pi-coding-agent:1.0.1": {}
+    "ghcr.io/jjlinares/pi/pi:1": {}
   },
   "dev.containers.defaultExtensions": [
     "jjmsft.pi-code-tui"
